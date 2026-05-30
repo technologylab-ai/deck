@@ -64,12 +64,14 @@ end tell
 
 class SafariBackend:
     def find(self, target: Target) -> Handle | None:
-        result = run_osascript(_find_script(target.match or target.url))
+        match = target.match or target.url
+        result = run_osascript(_find_script(match))
         if result.endswith("FOUND"):
             return Handle(
                 app=APP_NAME,
                 found=True,
-                detail=f"Safari tab matching '{target.match or target.url}'",
+                ref={"match": match},
+                detail=f"Safari tab matching '{match}'",
             )
         return None
 
@@ -94,6 +96,7 @@ class SafariBackend:
         ]
 
     def describe_focus(self, handle: Handle) -> list[str]:
+        match = handle.ref.get("match", "")
         return [
-            f"osascript: tell Safari to select tab matching '{handle.detail}' + activate",
+            f"osascript: tell Safari to select tab matching '{match}' + activate",
         ]
