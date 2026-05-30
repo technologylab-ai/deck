@@ -283,30 +283,48 @@ def cmd_doctor() -> None:
                 _bad("bundle:", f"{t.bundle} ({name}) NOT FOUND")
                 ok = False
 
-    # Automation (Apple Events) permission for each browser the config uses.
-    # Without it, browser targets fail at press time with osascript error -1743.
-    browsers = {"safari": "Safari", "chrome": "Google Chrome"}
-    used = {t.kind for t in cfg.targets.values()} & browsers.keys()
-    for kind in sorted(used):
-        app_name = browsers[kind]
-        state = _automation_state(app_name)
+    kinds = {t.kind for t in cfg.targets.values()}
+
+    # Safari targets use Apple Events (Automation). Without it they fail at press
+    # time with osascript error -1743.
+    if "safari" in kinds:
+        state = _automation_state("Safari")
         if state == "ok":
-            _ok("automation:", app_name)
+            _ok("automation:", "Safari")
         elif state == "denied":
             _bad(
                 "automation:",
-                f"{app_name} NOT AUTHORIZED — grant this terminal Automation "
-                f"access to {app_name} in System Settings › Privacy & Security › "
-                f"Automation (or just run 'deck open' once and approve the prompt).",
+                "Safari NOT AUTHORIZED — grant this terminal Automation access to "
+                "Safari in System Settings › Privacy & Security › Automation (or "
+                "run 'deck open' once and approve the prompt).",
             )
             ok = False
         elif state == "not-running":
             console.print(
-                f"[yellow]–[/] automation: {app_name} not running "
-                f"(can't verify until launched)"
+                "[yellow]–[/] automation: Safari not running "
+                "(can't verify until launched)"
             )
         else:
-            console.print(f"[yellow]?[/] automation: {app_name} ({state})")
+            console.print(f"[yellow]?[/] automation: Safari ({state})")
+
+    # Chrome targets dedup via the Accessibility (AX) API, not Apple Events —
+    # robust to the user's multiple --app Chrome instances. Without Accessibility,
+    # find() can't read tab URLs and every press opens a fresh window.
+    if "chrome" in kinds:
+        state = _accessibility_state()
+        if state == "ok":
+            _ok("accessibility:", "granted (Chrome tab dedup)")
+        elif state == "denied":
+            _bad(
+                "accessibility:",
+                "NOT GRANTED — give the app running deck (your terminal for dev, "
+                "Elgato Stream Deck for buttons) Accessibility access in System "
+                "Settings › Privacy & Security › Accessibility. Chrome dedup needs "
+                "it; without it every press opens a new window.",
+            )
+            ok = False
+        else:
+            console.print(f"[yellow]?[/] accessibility: ({state})")
 
     if ok:
         console.print("status: [green]ok[/]")
@@ -334,6 +352,35 @@ def _app_exists(bundle: str) -> bool:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
     return proc.returncode == 0
+
+
+def _accessibility_state() -> str:
+    """Probe whether the app controlling deck has Accessibility (AX) access.
+
+    Returns 'ok', 'denied' (TCC error -25211), or an error string. Reading a UI
+    element attribute is AX-gated; merely listing processes is not, so we count a
+    process's windows to force the check.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "/usr/bin/osascript",
+                "-e",
+                'tell application "System Events" to return (count of windows of '
+                "(first application process whose frontmost is true))",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+    if proc.returncode == 0:
+        return "ok"
+    if "-25211" in proc.stderr or "assistive access" in proc.stderr:
+        return "denied"
+    return proc.stderr.strip() or f"exit {proc.returncode}"
 
 
 def _automation_state(app_name: str) -> str:

@@ -62,9 +62,19 @@ Three backends:
   *also* be pinned via AeroSpace `on-window-detected` rules.
 - **`safari`** — open/focus a URL via AppleScript (`osascript`); enumerate windows+tabs, match
   the URL, `set current tab` + `activate`, else `make new tab`. Path for all Synadia targets.
-- **`chrome`** — open/focus a URL via AppleScript, default profile, dedup by URL. Phase 1 opens a
-  normal tab; Phase 2 adds `mode = "app"` to launch a `--app=<url>` window via the Chrome binary
-  (dedup must still match the existing app-mode window).
+- **`chrome`** — dedup via the **Accessibility (AX) API**, not AppleScript. The user runs extra
+  Chrome instances (`--app=<url> --user-data-dir=…` for OBS capture / slides / a demo); they all
+  share bundle id `com.google.Chrome`, so `tell application "Google Chrome"` Apple Events route to
+  an arbitrary instance and break AppleScript dedup/focus (and can spawn windows in a throwaway
+  profile). Instead, `find()` reads each Chrome window's active-tab URL from the window-level
+  `AXDocument` attribute (instant, no traversal, PID-targeted — immune to how many Chrome instances
+  run), matches `target.match`, bridges the AX window title to the AeroSpace window-id, and `focus()`
+  uses `aerospace focus --window-id`. `create()` opens the URL via `Google Chrome --new-window <url>`
+  in the **default profile** (no AppleScript, no stray-profile risk). Requires **Accessibility**
+  permission for the app running deck (terminal for dev, Elgato Stream Deck for buttons). Limitation:
+  `AXDocument` is the active tab only, so a target sitting as a background tab in a shared window
+  isn't matched — fine for deck-opened single-purpose windows. Phase 2 (`mode = "app"`, `--app=<url>`)
+  is still later. See `memory/deck-chrome-dedup-accessibility.md`.
 
 ## AeroSpace integration
 
@@ -95,7 +105,10 @@ Logs to a file; clear errors.
 ## Hard constraints
 
 - **Dependencies are allowed and managed by uv.** The CLI uses **Typer + Rich** (`pyproject.toml`
-  pins them). Still macOS-only: native apps via `open -b`, AppleScript via `osascript`, AeroSpace
-  via its CLI. The config loader uses `tomllib` (stdlib).
+  pins them). Still macOS-only: native apps via `open -b`, Safari via AppleScript (`osascript`),
+  Chrome dedup via the **Accessibility (AX) API** (`osascript` → System Events `AXDocument`),
+  AeroSpace via its CLI. The config loader uses `tomllib` (stdlib).
+- **Permissions:** Safari targets need Automation (Apple Events); Chrome targets need Accessibility
+  (grant the terminal for dev, Elgato Stream Deck for buttons). `deck doctor` checks both.
 - Verify the user's environment (Chrome binary path, workspace names, URLs); leave clearly-marked
   `TODO` placeholders for anything that can't be determined rather than guessing.

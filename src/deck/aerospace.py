@@ -124,6 +124,15 @@ def switch_to(workspace: str) -> None:
         )
 
 
+def focus_window(window_id: str) -> None:
+    """Focus a specific window by id; AeroSpace follows to its workspace."""
+    proc = _run(["focus", "--window-id", window_id])
+    if proc.returncode != 0:
+        raise AeroSpaceError(
+            f"focus --window-id failed: {proc.stderr.strip() or proc.returncode}"
+        )
+
+
 def focused_window() -> dict | None:
     """Return the currently-focused window dict, or None."""
     proc = _run(["list-windows", "--focused", "--format", _FORMAT])
