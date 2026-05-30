@@ -8,11 +8,14 @@ Because personal Google lives here and Synadia Google lives in Safari, no
 profile-aware dedup is needed — the browser boundary isolates them.
 """
 
+import subprocess
+
 from ..aerospace import find_new_window
 from ..config import Target
 from . import Handle, run_osascript
 
 APP_NAME = "Google Chrome"
+CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 def _osa_str(s: str) -> str:
@@ -43,18 +46,6 @@ end tell
 '''
 
 
-def _create_script(url: str) -> str:
-    u = _osa_str(url)
-    return f'''
-tell application "Google Chrome"
-    make new window
-    set URL of active tab of front window to "{u}"
-    activate
-    return "CREATED"
-end tell
-'''
-
-
 class ChromeBackend:
     def find(self, target: Target) -> Handle | None:
         match = target.match or target.url
@@ -73,11 +64,23 @@ class ChromeBackend:
         pass
 
     def create(self, target: Target) -> Handle:
-        run_osascript(_create_script(target.url))
+        # Open a new window in the DEFAULT Chrome profile via the binary. We do
+        # NOT use AppleScript `make new window`: when extra Chrome instances run
+        # with their own --user-data-dir (e.g. OBS `--app` windows), Apple
+        # Events route to an arbitrary instance and can spawn the window in a
+        # throwaway, logged-out profile. Launching the binary with --new-window
+        # and no --user-data-dir always hands off to the running default-profile
+        # instance ("Opening in existing browser session").
+        subprocess.run(
+            [CHROME_BIN, "--new-window", target.url],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         return Handle(
             app=APP_NAME,
             found=False,
-            detail=f"new Chrome tab -> {target.url}",
+            detail=f"new Chrome window -> {target.url}",
         )
 
     def new_window_id(self, target: Target, before_ids, timeout: float = 2.0):
@@ -86,9 +89,10 @@ class ChromeBackend:
     def describe_create(self, target: Target) -> list[str]:
         note = ""
         if target.mode == "app":
-            note = "  (mode='app' requested; Phase 1 opens a normal tab anyway)"
+            note = "  (mode='app' requested; Phase 1 opens a normal window anyway)"
         return [
-            f"osascript: tell Chrome to make new window + set URL {target.url}{note}",
+            f"{CHROME_BIN} --new-window {target.url}{note}",
+            "(default profile; avoids AppleScript routing to a stray instance)",
         ]
 
     def describe_focus(self, handle: Handle) -> list[str]:
