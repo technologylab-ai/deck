@@ -1,0 +1,43 @@
+#!/bin/sh
+# deck — shell entrypoint.
+#
+# Stream Deck launches commands with a minimal PATH that often lacks Homebrew,
+# so we locate a Python 3.11+ interpreter ourselves rather than relying on
+# `python3` resolving to something usable (system Python is 3.9, no tomllib).
+
+set -eu
+
+# Absolute path to this script's directory (the repo root; package is in src/).
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+find_python() {
+    # Prefer Homebrew's known location, then anything on PATH, newest first.
+    for cand in \
+        /opt/homebrew/bin/python3.13 \
+        /opt/homebrew/bin/python3.12 \
+        /opt/homebrew/bin/python3.11 \
+        /usr/local/bin/python3.13 \
+        /usr/local/bin/python3.12 \
+        /usr/local/bin/python3.11; do
+        if [ -x "$cand" ]; then
+            echo "$cand"
+            return 0
+        fi
+    done
+    for name in python3.13 python3.12 python3.11; do
+        if command -v "$name" >/dev/null 2>&1; then
+            command -v "$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+PY=$(find_python) || {
+    echo "deck: no Python 3.11+ interpreter found." >&2
+    echo "deck: install one, e.g. 'brew install python@3.12'." >&2
+    exit 1
+}
+
+export PYTHONPATH="$SCRIPT_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PY" -m deck "$@"

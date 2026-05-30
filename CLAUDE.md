@@ -1,0 +1,98 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Status
+
+**Phase 1 is built** (config loader, CLI, dry-run, AeroSpace placement, and the `app`/`safari`/
+`chrome` normal-tab backends). The full build spec lives in `claude-code-prompt.md` (the canonical
+source of truth for design decisions). Remaining: Phase 2 (Chrome `--app=<url>` window mode) and
+Phase 3 (Stream Deck wiring). Stop after each phase for the user to test.
+
+### Layout & commands
+
+The package lives at `src/deck/` — a file named `deck` and a dir named `deck/` can't coexist at the
+repo root, so the package sits under `src/` with the `deck` shell entrypoint setting `PYTHONPATH=src`.
+Run via the `./deck` wrapper, which locates a Homebrew `python3.11+` (system Python is 3.9, no
+`tomllib`).
+
+- `./deck list` — list configured targets
+- `./deck doctor` — sanity-check config, binaries, interpreter, log path
+- `./deck open <target>` — open or focus (the verb Stream Deck calls)
+- `./deck --dry-run open <target>` — print the plan without acting
+- Config: `~/.config/deck/targets.toml` (honors `XDG_CONFIG_HOME`); template in `targets.toml.example`
+- Log: `~/.local/state/deck/deck.log` (honors `XDG_STATE_HOME`)
+- Compile check: `python3.12 -m py_compile src/deck/*.py src/deck/backends/*.py`
+
+## What `deck` is
+
+A small, **stdlib-only** Python CLI that opens macOS apps and browser tabs on specific
+**AeroSpace** workspaces **idempotently** — open if not already open, otherwise just focus.
+Invoked one target at a time by Elgato Stream Deck buttons, e.g. `deck open synadia-gmail`.
+Presses must feel instant (fast startup).
+
+## Core architectural invariant: the browser boundary does the dedup
+
+This is the key idea — internalize it before changing browser logic:
+
+- **Synadia** Google apps (Gmail, Calendar, …) live in **Safari**.
+- **Personal** apps (e.g. HEY) live in **Chrome** (default profile).
+
+Because Synadia and personal Google live in *physically different browsers*, profile-aware dedup
+is **not needed**. `synadia-gmail` inspects only Safari tabs and can never resolve to personal
+Gmail in Chrome. Do **not** build CDP / `--remote-debugging-port` logic now — it's explicitly
+out of scope (see "Future" in the spec). Keep the design open to per-Chrome-profile dedup later
+via a `profile` field, but don't build it.
+
+## Backend interface
+
+Targets are config-driven; the target's `type`/`browser` selects a pluggable backend. Keep all
+backends behind one interface:
+
+```
+find(target) -> handle | None
+focus(handle)
+create(target) -> handle
+place(handle, workspace)
+```
+
+Three backends:
+- **`app`** — native macOS app via `open -b <bundle-id>`; dedup = is the app running. These can
+  *also* be pinned via AeroSpace `on-window-detected` rules.
+- **`safari`** — open/focus a URL via AppleScript (`osascript`); enumerate windows+tabs, match
+  the URL, `set current tab` + `activate`, else `make new tab`. Path for all Synadia targets.
+- **`chrome`** — open/focus a URL via AppleScript, default profile, dedup by URL. Phase 1 opens a
+  normal tab; Phase 2 adds `mode = "app"` to launch a `--app=<url>` window via the Chrome binary
+  (dedup must still match the existing app-mode window).
+
+## AeroSpace integration
+
+- **Never hardcode workspace names** — they use a numerical postfix and must be read from the
+  user's `aerospace.toml`.
+- After opening a new window, find it by polling `aerospace list-windows --all` with `--format`
+  to get window-id + app + title. Handle the race where the window appears a beat later (short
+  retry loop with timeout), then move it by window-id and switch to its workspace.
+- Consult `aerospace --help` / man pages for exact flags rather than guessing.
+- Also emit static `on-window-detected` rules (e.g. Outlook → comms workspace) as a paste-in
+  snippet for `aerospace.toml`.
+
+## Config
+
+TOML at `~/.config/deck/targets.toml`, loaded with `tomllib`. One table per target. `browser`
+implies a web target; `type = "app"` is a native app. Adding a target must require editing TOML
+**only** — no code and no Stream Deck changes.
+
+## CLI surface
+
+- `deck open <target>` — main verb Stream Deck calls.
+- `deck list` — list configured targets.
+- `deck --dry-run open <target>` — print matched tab / launch cmd / placement without acting.
+- `deck doctor` — sanity-check config, binary paths, AeroSpace presence.
+
+Logs to a file; clear errors.
+
+## Hard constraints
+
+- **Python stdlib only** — `subprocess`, `tomllib`; AppleScript via `osascript`. No third-party deps.
+- Verify the user's environment (Chrome binary path, workspace names, URLs); leave clearly-marked
+  `TODO` placeholders for anything that can't be determined rather than guessing.

@@ -1,0 +1,9 @@
+# deck — AeroSpace on-window-detected rules (paste into ~/.config/aerospace/aerospace.toml)
+#
+# These statically pin app-type targets to their workspace, so the window lands
+# correctly even before `deck`'s dynamic move runs (and on normal launches too).
+# One rule per app-type target. After pasting, run: aerospace reload-config
+
+[[on-window-detected]]
+if.app-id = 'com.microsoft.Outlook'
+run = 'move-node-to-workspace 1'

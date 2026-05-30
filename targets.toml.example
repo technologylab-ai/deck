@@ -1,0 +1,33 @@
+# deck targets — copy to ~/.config/deck/targets.toml and edit.
+#
+# One table per target. Discriminator:
+#   type = "app"                 -> native macOS app (needs `bundle`)
+#   browser = "safari" | "chrome" -> web target (needs `url`)
+#
+# `workspace` is an AeroSpace workspace name (numeric here). `match` is the
+# substring used to dedup an already-open tab; it defaults to `url`.
+# Adding a target requires editing THIS FILE ONLY — no code, no Stream Deck.
+
+[hey]
+browser = "chrome"
+mode = "app"            # Phase 2 honors this; Phase 1 opens a normal tab
+url = "https://app.hey.com"
+workspace = "1"
+match = "app.hey.com"
+
+[synadia-gmail]
+browser = "safari"
+url = "https://mail.google.com"
+workspace = "7"
+match = "mail.google.com"
+
+[synadia-calendar]
+browser = "safari"
+url = "https://calendar.google.com"
+workspace = "7"
+match = "calendar.google.com"
+
+[outlook]
+type = "app"
+bundle = "com.microsoft.Outlook"
+workspace = "1"

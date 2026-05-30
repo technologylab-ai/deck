@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Local, machine-specific config (use targets.toml.example as a template).
+targets.toml
