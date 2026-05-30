@@ -21,10 +21,14 @@ _log = get_logger()
 
 def _windows_for_bundle(bundle: str) -> list[dict]:
     """Return AeroSpace windows for a bundle-id (empty if not running)."""
+    # NB: the `--all` alias conflicts with filtering flags ("--all conflicts
+    # with filtering flags"), so we must NOT combine it with --app-bundle-id.
+    # `--monitor all` spans every monitor and still allows the bundle filter.
     cmd = [
         AEROSPACE,
         "list-windows",
-        "--all",
+        "--monitor",
+        "all",
         "--app-bundle-id",
         bundle,
         "--format",
@@ -37,7 +41,13 @@ def _windows_for_bundle(bundle: str) -> list[dict]:
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise BackendError(f"aerospace list-windows failed: {exc}") from exc
     if proc.returncode != 0:
-        # Non-zero often just means "no such running app"; treat as empty.
+        # A real failure (e.g. bad flags) must not masquerade as "not running".
+        # An unknown/uninstalled bundle exits non-zero with empty output, which
+        # is the legitimate "not open" case; surface anything else.
+        if proc.stderr.strip():
+            raise BackendError(
+                f"aerospace list-windows failed: {proc.stderr.strip()}"
+            )
         return []
     out = []
     for line in proc.stdout.splitlines():
