@@ -1,10 +1,10 @@
 # deck
 
-A small, **stdlib-only** Python CLI that opens macOS apps and browser tabs on
-specific [AeroSpace](https://nikitabobko.github.io/AeroSpace/) workspaces
-**idempotently** — open if not already open, otherwise just focus. Built to be
-driven one target at a time by Elgato Stream Deck buttons (`deck open <target>`),
-so presses feel instant.
+A small Python CLI that opens macOS apps and browser tabs on specific
+[AeroSpace](https://nikitabobko.github.io/AeroSpace/) workspaces **idempotently**
+— open if not already open, otherwise just focus. Built to be driven one target
+at a time by Elgato Stream Deck buttons (`deck open <target>`), so presses feel
+instant. Packaged with [uv](https://docs.astral.sh/uv/); CLI built on Typer + Rich.
 
 > **Status:** Phase 1 — config loader, CLI, dry-run, AeroSpace placement, and the
 > `app` / `safari` / `chrome` (normal tab) backends. Phase 2 adds Chrome
@@ -23,21 +23,25 @@ personal Gmail in Chrome. The browser boundary *is* the isolation.
 
 - macOS with [AeroSpace](https://github.com/nikitabobko/AeroSpace) at
   `/opt/homebrew/bin/aerospace`.
-- Python **3.11+** (for `tomllib`). System Python 3.9 won't do; the `deck`
-  entrypoint locates a Homebrew `python3.11/3.12/3.13` itself.
-- No third-party packages.
+- [uv](https://docs.astral.sh/uv/). Python **3.11+** is required (for `tomllib`);
+  uv reads `.python-version` and auto-provisions 3.12 on first run — no manual
+  interpreter setup.
 
 ## Install
 
 ```sh
 git clone <this repo> streamdeck-tool
 cd streamdeck-tool
+uv tool install --editable .                          # installs the `deck` shim
 cp targets.toml.example ~/.config/deck/targets.toml   # then edit
-# optional: put `deck` on your PATH
-ln -s "$PWD/deck" /opt/homebrew/bin/deck
 ```
 
-`~/.config/deck/targets.toml` honors `XDG_CONFIG_HOME` if set.
+`uv tool install --editable .` puts a `deck` console script on your PATH (at
+`~/.local/bin/deck`) backed by the working tree, so source edits take effect
+without reinstalling. For in-repo development without installing, use
+`uv run deck …`. `~/.config/deck/targets.toml` honors `XDG_CONFIG_HOME` if set.
+
+Optional shell completion (Typer): `deck --install-completion`.
 
 ## Usage
 
@@ -90,9 +94,10 @@ statically — paste the rules from `aerospace-snippet.toml` into
 ## Layout
 
 ```
-deck                  # shell entrypoint: finds python3.11+, execs the package
-src/deck/             # stdlib-only package (python -m deck)
-  cli.py              # argparse: open / list / doctor; --dry-run
+pyproject.toml        # uv package: deps (typer, rich) + `deck` console script
+.python-version       # uv auto-provisions this interpreter (3.12)
+src/deck/             # package (also runnable via `python -m deck`)
+  cli.py              # Typer + Rich: open / list / doctor; --dry-run
   config.py           # load + validate targets.toml
   aerospace.py        # enumerate windows, place + switch
   logging.py          # file logger

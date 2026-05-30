@@ -2,5 +2,11 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# uv / build artifacts
+.venv/
+dist/
+build/
+*.egg-info/
+
 # Local, machine-specific config (use targets.toml.example as a template).
 targets.toml

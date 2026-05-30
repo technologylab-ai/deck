@@ -11,15 +11,16 @@ Phase 3 (Stream Deck wiring). Stop after each phase for the user to test.
 
 ### Layout & commands
 
-The package lives at `src/deck/` — a file named `deck` and a dir named `deck/` can't coexist at the
-repo root, so the package sits under `src/` with the `deck` shell entrypoint setting `PYTHONPATH=src`.
-Run via the `./deck` wrapper, which locates a Homebrew `python3.11+` (system Python is 3.9, no
+Packaged with uv (`pyproject.toml`); the entrypoint is the `deck` console script
+(`deck.cli:main`). The package lives at `src/deck/` (standard hatchling src-layout). Install with
+`uv tool install --editable .` (shim at `~/.local/bin/deck`); for in-repo dev use `uv run deck …`
+or `python -m deck`. `.python-version` pins 3.12 and uv auto-provisions it (3.11+ needed for
 `tomllib`).
 
-- `./deck list` — list configured targets
-- `./deck doctor` — sanity-check config, binaries, interpreter, log path
-- `./deck open <target>` — open or focus (the verb Stream Deck calls)
-- `./deck --dry-run open <target>` — print the plan without acting
+- `deck list` — list configured targets
+- `deck doctor` — sanity-check config, binaries, interpreter, log path
+- `deck open <target>` — open or focus (the verb Stream Deck calls)
+- `deck --dry-run open <target>` — print the plan without acting
 - Config: `~/.config/deck/targets.toml` (honors `XDG_CONFIG_HOME`); template in `targets.toml.example`
 - Log: `~/.local/state/deck/deck.log` (honors `XDG_STATE_HOME`)
 - Compile check: `python3.12 -m py_compile src/deck/*.py src/deck/backends/*.py`
@@ -93,6 +94,8 @@ Logs to a file; clear errors.
 
 ## Hard constraints
 
-- **Python stdlib only** — `subprocess`, `tomllib`; AppleScript via `osascript`. No third-party deps.
+- **Dependencies are allowed and managed by uv.** The CLI uses **Typer + Rich** (`pyproject.toml`
+  pins them). Still macOS-only: native apps via `open -b`, AppleScript via `osascript`, AeroSpace
+  via its CLI. The config loader uses `tomllib` (stdlib).
 - Verify the user's environment (Chrome binary path, workspace names, URLs); leave clearly-marked
   `TODO` placeholders for anything that can't be determined rather than guessing.

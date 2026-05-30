@@ -1,13 +1,17 @@
-"""deck CLI — argparse dispatch for open / list / doctor.
+"""deck CLI — Typer dispatch for open / list / doctor, Rich output.
 
 Stream Deck buttons call `deck open <target>`. Presses must feel instant, so we
 keep imports light and do the minimum work per command.
 """
 
-import argparse
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
+
+import typer
+from rich.console import Console
+from rich.table import Table
 
 from . import __version__, aerospace, config
 from .backends import get_backend
@@ -15,9 +19,50 @@ from .logging import get_logger, log_path
 
 _log = get_logger()
 
+console = Console()
+err_console = Console(stderr=True)
+
+app = typer.Typer(
+    name="deck",
+    help="Idempotently open apps/tabs on AeroSpace workspaces.",
+    no_args_is_help=True,
+    add_completion=True,
+)
+
+
+@dataclass
+class State:
+    """Per-invocation flags stashed on the Typer context object."""
+
+    dry_run: bool = False
+
 
 def _err(msg: str) -> None:
-    print(f"deck: {msg}", file=sys.stderr)
+    err_console.print(f"[red]deck:[/] {msg}")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        console.print(f"deck {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    ctx: typer.Context,
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="print what would happen without acting"
+    ),
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="show version and exit",
+    ),
+) -> None:
+    """deck — open or focus apps/tabs on AeroSpace workspaces."""
+    ctx.obj = State(dry_run=dry_run)
 
 
 # --------------------------------------------------------------------------- #
@@ -25,35 +70,42 @@ def _err(msg: str) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def cmd_open(args) -> int:
+@app.command("open")
+def cmd_open(
+    ctx: typer.Context,
+    target: str = typer.Argument(..., help="target name (see 'deck list')"),
+) -> None:
+    """Open or focus a target."""
     try:
         cfg = config.load()
     except config.ConfigError as exc:
         _err(str(exc))
-        return 1
+        raise typer.Exit(code=1)
 
-    target = cfg.targets.get(args.target)
-    if target is None:
-        _err(f"unknown target '{args.target}'. Try 'deck list'.")
-        return 1
-    if cfg.errors and any(args.target in e for e in cfg.errors):
+    tgt = cfg.targets.get(target)
+    if tgt is None:
+        _err(f"unknown target '{target}'. Try 'deck list'.")
+        raise typer.Exit(code=1)
+    if cfg.errors and any(target in e for e in cfg.errors):
         for e in cfg.errors:
-            if args.target in e:
+            if target in e:
                 _err(e)
-        return 1
+        raise typer.Exit(code=1)
 
-    backend = get_backend(target)
-    _log.info("open %s (kind=%s, ws=%s)", target.name, target.kind, target.workspace)
+    backend = get_backend(tgt)
+    _log.info("open %s (kind=%s, ws=%s)", tgt.name, tgt.kind, tgt.workspace)
 
-    if args.dry_run:
-        return _dry_run_open(target, backend)
+    if ctx.obj.dry_run:
+        raise typer.Exit(code=_dry_run_open(tgt, backend))
 
     try:
-        return _live_open(target, backend)
+        raise typer.Exit(code=_live_open(tgt, backend))
+    except typer.Exit:
+        raise
     except Exception as exc:  # surface a clean error; details go to the log
-        _log.exception("open %s failed", target.name)
-        _err(f"open {target.name} failed: {exc}")
-        return 1
+        _log.exception("open %s failed", tgt.name)
+        _err(f"open {tgt.name} failed: {exc}")
+        raise typer.Exit(code=1)
 
 
 def _live_open(target, backend) -> int:
@@ -71,7 +123,7 @@ def _live_open(target, backend) -> int:
                 ws = focused["workspace"]
         if ws is not None:
             aerospace.switch_to(ws)
-        print(f"focused {target.name} on workspace {ws or '?'}")
+        console.print(f"focused {target.name} on workspace {ws or '?'}")
         return 0
 
     # Not open yet: create, resolve the new window, place + switch.
@@ -86,36 +138,43 @@ def _live_open(target, backend) -> int:
         )
         return 1
     aerospace.place_and_switch(new_id, target.workspace)
-    print(f"opened {target.name} on workspace {target.workspace} (window {new_id})")
+    console.print(
+        f"opened {target.name} on workspace {target.workspace} (window {new_id})"
+    )
     return 0
 
 
 def _dry_run_open(target, backend) -> int:
-    print(f"[dry-run] open {target.name}  (kind={target.kind}, ws={target.workspace})")
+    console.print(
+        f"[dim]\\[dry-run][/] open {target.name}  "
+        f"(kind={target.kind}, ws={target.workspace})"
+    )
     # find() is read-only (enumerates tabs / running apps), safe in dry-run.
     handle = None
     try:
         handle = backend.find(target)
     except Exception as exc:
-        print(f"  find: error ({exc})")
+        console.print(f"  find: error ({exc})")
 
     if handle is not None:
-        print(f"  match: {handle.detail}")
+        console.print(f"  match: {handle.detail}")
         for line in backend.describe_focus(handle):
-            print(f"  would focus: {line}")
+            console.print(f"  would focus: {line}")
         if handle.window_id:
-            print(f"  would: aerospace workspace <ws of window {handle.window_id}>")
+            console.print(
+                f"  would: aerospace workspace <ws of window {handle.window_id}>"
+            )
         else:
-            print("  would: switch to the focused window's workspace")
+            console.print("  would: switch to the focused window's workspace")
     else:
-        print("  match: no existing window")
+        console.print("  match: no existing window")
         for line in backend.describe_create(target):
-            print(f"  would create: {line}")
-        print(
+            console.print(f"  would create: {line}")
+        console.print(
             f"  would place: aerospace move-node-to-workspace --window-id <new> "
             f"{target.workspace} --focus-follows-window"
         )
-        print(f"  would: aerospace workspace {target.workspace}")
+        console.print(f"  would: aerospace workspace {target.workspace}")
     return 0
 
 
@@ -124,30 +183,38 @@ def _dry_run_open(target, backend) -> int:
 # --------------------------------------------------------------------------- #
 
 
-def cmd_list(args) -> int:
+@app.command("list")
+def cmd_list() -> None:
+    """List configured targets."""
     try:
         cfg = config.load()
     except config.ConfigError as exc:
         _err(str(exc))
-        return 1
+        raise typer.Exit(code=1)
 
     if not cfg.targets:
-        print("no targets configured")
-        return 0
+        console.print("no targets configured")
+        return
 
-    width = max(len(n) for n in cfg.targets)
+    table = Table(show_edge=False, pad_edge=False, box=None)
+    table.add_column("Name", style="bold cyan")
+    table.add_column("Workspace", justify="right")
+    table.add_column("Kind")
+    table.add_column("Target")
+
     for name, t in cfg.targets.items():
         if t.kind == "app":
-            desc = f"app {t.bundle}"
+            target_desc = t.bundle or ""
         else:
-            desc = f"{t.kind} {t.url}"
+            target_desc = t.url or ""
             if t.mode == "app":
-                desc += " [mode=app]"
-        print(f"{name:<{width}}  ws {t.workspace:<3}  {desc}")
+                target_desc += " [magenta]\\[mode=app][/]"
+        table.add_row(name, t.workspace, t.kind, target_desc)
+
+    console.print(table)
 
     for e in cfg.errors:
         _err(e)
-    return 0
 
 
 # --------------------------------------------------------------------------- #
@@ -155,52 +222,65 @@ def cmd_list(args) -> int:
 # --------------------------------------------------------------------------- #
 
 
-def cmd_doctor(args) -> int:
+def _ok(label: str, detail: str) -> None:
+    console.print(f"[green]✓[/] {label} {detail}")
+
+
+def _bad(label: str, detail: str) -> None:
+    console.print(f"[red]✗[/] {label} {detail}")
+
+
+@app.command("doctor")
+def cmd_doctor() -> None:
+    """Sanity-check the environment."""
     ok = True
 
-    print(f"deck {__version__}")
-    print(f"python: {sys.executable} ({sys.version.split()[0]})")
-    print(f"log:    {log_path()}")
+    console.print(f"[bold]deck {__version__}[/]")
+    console.print(f"python: {sys.executable} ({sys.version.split()[0]})")
+    console.print(f"log:    {log_path()}")
 
     # config
     try:
         cfg = config.load()
-        print(f"config: {cfg.path}  ({len(cfg.targets)} targets)")
+        console.print(f"config: {cfg.path}  ({len(cfg.targets)} targets)")
         for e in cfg.errors:
-            print(f"  ERROR {e}")
+            _bad("config:", e)
             ok = False
     except config.ConfigError as exc:
-        print(f"config: ERROR {exc}")
-        return 1
+        _bad("config:", str(exc))
+        raise typer.Exit(code=1)
 
     # aerospace
     if shutil.which("aerospace") or _exists(aerospace.AEROSPACE):
-        print(f"aerospace: {aerospace.AEROSPACE} ✓")
+        _ok("aerospace:", aerospace.AEROSPACE)
     else:
-        print(f"aerospace: MISSING at {aerospace.AEROSPACE}")
+        _bad("aerospace:", f"MISSING at {aerospace.AEROSPACE}")
         ok = False
 
     # chrome binary
     chrome_bin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     if _exists(chrome_bin):
-        print(f"chrome:    {chrome_bin} ✓")
+        _ok("chrome:", chrome_bin)
     else:
-        print(f"chrome:    not found at {chrome_bin} (only needed for chrome targets)")
+        console.print(
+            f"[yellow]–[/] chrome:    not found at {chrome_bin} "
+            f"(only needed for chrome targets)"
+        )
 
     # osascript
     if _exists("/usr/bin/osascript"):
-        print("osascript: /usr/bin/osascript ✓")
+        _ok("osascript:", "/usr/bin/osascript")
     else:
-        print("osascript: MISSING at /usr/bin/osascript")
+        _bad("osascript:", "MISSING at /usr/bin/osascript")
         ok = False
 
     # bundle ids for app targets
     for name, t in cfg.targets.items():
         if t.kind == "app" and t.bundle:
             if _app_exists(t.bundle):
-                print(f"bundle:    {t.bundle} ({name}) ✓")
+                _ok("bundle:", f"{t.bundle} ({name})")
             else:
-                print(f"bundle:    {t.bundle} ({name}) NOT FOUND")
+                _bad("bundle:", f"{t.bundle} ({name}) NOT FOUND")
                 ok = False
 
     # Automation (Apple Events) permission for each browser the config uses.
@@ -211,22 +291,28 @@ def cmd_doctor(args) -> int:
         app_name = browsers[kind]
         state = _automation_state(app_name)
         if state == "ok":
-            print(f"automation: {app_name} ✓")
+            _ok("automation:", app_name)
         elif state == "denied":
-            print(
-                f"automation: {app_name} NOT AUTHORIZED — grant this terminal "
-                f"Automation access to {app_name} in System Settings › Privacy & "
-                f"Security › Automation (or just run 'deck open' once and approve "
-                f"the prompt)."
+            _bad(
+                "automation:",
+                f"{app_name} NOT AUTHORIZED — grant this terminal Automation "
+                f"access to {app_name} in System Settings › Privacy & Security › "
+                f"Automation (or just run 'deck open' once and approve the prompt).",
             )
             ok = False
         elif state == "not-running":
-            print(f"automation: {app_name} not running (can't verify until launched)")
+            console.print(
+                f"[yellow]–[/] automation: {app_name} not running "
+                f"(can't verify until launched)"
+            )
         else:
-            print(f"automation: {app_name} ? ({state})")
+            console.print(f"[yellow]?[/] automation: {app_name} ({state})")
 
-    print("status:", "ok" if ok else "problems found")
-    return 0 if ok else 1
+    if ok:
+        console.print("status: [green]ok[/]")
+    else:
+        console.print("status: [red]problems found[/]")
+        raise typer.Exit(code=1)
 
 
 def _exists(path: str) -> bool:
@@ -286,39 +372,6 @@ def _automation_state(app_name: str) -> str:
     return proc.stderr.strip() or f"exit {proc.returncode}"
 
 
-# --------------------------------------------------------------------------- #
-# arg parsing
-# --------------------------------------------------------------------------- #
-
-
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="deck",
-        description="Idempotently open apps/tabs on AeroSpace workspaces.",
-    )
-    p.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="print what would happen without acting",
-    )
-    p.add_argument("--version", action="version", version=f"deck {__version__}")
-
-    sub = p.add_subparsers(dest="command", required=True)
-
-    p_open = sub.add_parser("open", help="open or focus a target")
-    p_open.add_argument("target", help="target name (see 'deck list')")
-    p_open.set_defaults(func=cmd_open)
-
-    p_list = sub.add_parser("list", help="list configured targets")
-    p_list.set_defaults(func=cmd_list)
-
-    p_doctor = sub.add_parser("doctor", help="sanity-check the environment")
-    p_doctor.set_defaults(func=cmd_doctor)
-
-    return p
-
-
-def main(argv=None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    return args.func(args)
+def main() -> None:
+    """Console-script entrypoint (see [project.scripts] in pyproject.toml)."""
+    app()
