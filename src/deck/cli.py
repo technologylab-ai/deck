@@ -203,6 +203,28 @@ def cmd_doctor(args) -> int:
                 print(f"bundle:    {t.bundle} ({name}) NOT FOUND")
                 ok = False
 
+    # Automation (Apple Events) permission for each browser the config uses.
+    # Without it, browser targets fail at press time with osascript error -1743.
+    browsers = {"safari": "Safari", "chrome": "Google Chrome"}
+    used = {t.kind for t in cfg.targets.values()} & browsers.keys()
+    for kind in sorted(used):
+        app_name = browsers[kind]
+        state = _automation_state(app_name)
+        if state == "ok":
+            print(f"automation: {app_name} ✓")
+        elif state == "denied":
+            print(
+                f"automation: {app_name} NOT AUTHORIZED — grant this terminal "
+                f"Automation access to {app_name} in System Settings › Privacy & "
+                f"Security › Automation (or just run 'deck open' once and approve "
+                f"the prompt)."
+            )
+            ok = False
+        elif state == "not-running":
+            print(f"automation: {app_name} not running (can't verify until launched)")
+        else:
+            print(f"automation: {app_name} ? ({state})")
+
     print("status:", "ok" if ok else "problems found")
     return 0 if ok else 1
 
@@ -226,6 +248,42 @@ def _app_exists(bundle: str) -> bool:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
     return proc.returncode == 0
+
+
+def _automation_state(app_name: str) -> str:
+    """Probe Apple Events authorization for a browser without launching it.
+
+    Returns 'ok', 'denied' (TCC error -1743), 'not-running', or an error string.
+    """
+    # Don't launch the app just to probe; only a running app can be verified.
+    try:
+        running = subprocess.run(
+            ["/usr/bin/osascript", "-e", f'application "{app_name}" is running'],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+    if running.stdout.strip() != "true":
+        return "not-running"
+
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/osascript", "-e", f'tell application "{app_name}" to count windows'],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return str(exc)
+    if proc.returncode == 0:
+        return "ok"
+    if "-1743" in proc.stderr or "Not authorized" in proc.stderr:
+        return "denied"
+    return proc.stderr.strip() or f"exit {proc.returncode}"
 
 
 # --------------------------------------------------------------------------- #
