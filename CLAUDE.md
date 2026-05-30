@@ -62,19 +62,19 @@ Three backends:
   *also* be pinned via AeroSpace `on-window-detected` rules.
 - **`safari`** — open/focus a URL via AppleScript (`osascript`); enumerate windows+tabs, match
   the URL, `set current tab` + `activate`, else `make new tab`. Path for all Synadia targets.
-- **`chrome`** — dedup via the **Accessibility (AX) API**, not AppleScript. The user runs extra
-  Chrome instances (`--app=<url> --user-data-dir=…` for OBS capture / slides / a demo); they all
-  share bundle id `com.google.Chrome`, so `tell application "Google Chrome"` Apple Events route to
-  an arbitrary instance and break AppleScript dedup/focus (and can spawn windows in a throwaway
-  profile). Instead, `find()` reads each Chrome window's active-tab URL from the window-level
-  `AXDocument` attribute (instant, no traversal, PID-targeted — immune to how many Chrome instances
-  run), matches `target.match`, bridges the AX window title to the AeroSpace window-id, and `focus()`
-  uses `aerospace focus --window-id`. `create()` opens the URL via `Google Chrome --new-window <url>`
-  in the **default profile** (no AppleScript, no stray-profile risk). Requires **Accessibility**
-  permission for the app running deck (terminal for dev, Elgato Stream Deck for buttons). Limitation:
-  `AXDocument` is the active tab only, so a target sitting as a background tab in a shared window
-  isn't matched — fine for deck-opened single-purpose windows. Phase 2 (`mode = "app"`, `--app=<url>`)
-  is still later. See `memory/deck-chrome-dedup-accessibility.md`.
+- **`chrome`** — dedup via **ScriptingBridge addressed to a specific Chrome PID**, not plain
+  AppleScript. The user runs extra Chrome instances (`--app=<url> --user-data-dir=…` for OBS capture
+  / slides / a demo); they all share bundle id `com.google.Chrome`, so `tell application "Google
+  Chrome"` Apple Events route to an arbitrary instance and break dedup/focus (and can spawn windows
+  in a throwaway profile). Instead, `find()` attaches via `SBApplication initWithProcessIdentifier:`
+  to the **default-profile** Chrome (the main process with no `--user-data-dir`) and scans every
+  window's every tab — **including background tabs** — for `target.match`. `focus()` selects that
+  tab (`activeTabIndex`), raises the window, activates Chrome, and switches AeroSpace to the window's
+  workspace (title→window-id bridge + `aerospace focus --window-id`). `create()` opens the URL via
+  `Google Chrome --new-window <url>` in the default profile (no AppleScript, no stray-profile risk).
+  Needs **Automation** (Apple Events) permission for the app running deck → Google Chrome (same as
+  Safari). Beats both AppleScript routing (wrong instance) and the AX API (active tab only, slow,
+  needs Accessibility). Phase 2 (`mode = "app"`, `--app=<url>`) is still later.
 
 ## AeroSpace integration
 
@@ -104,11 +104,12 @@ Logs to a file; clear errors.
 
 ## Hard constraints
 
-- **Dependencies are allowed and managed by uv.** The CLI uses **Typer + Rich** (`pyproject.toml`
-  pins them). Still macOS-only: native apps via `open -b`, Safari via AppleScript (`osascript`),
-  Chrome dedup via the **Accessibility (AX) API** (`osascript` → System Events `AXDocument`),
-  AeroSpace via its CLI. The config loader uses `tomllib` (stdlib).
-- **Permissions:** Safari targets need Automation (Apple Events); Chrome targets need Accessibility
-  (grant the terminal for dev, Elgato Stream Deck for buttons). `deck doctor` checks both.
+- **Dependencies are allowed and managed by uv.** The CLI uses **Typer + Rich**; Chrome dedup uses
+  **pyobjc-framework-ScriptingBridge** (`pyproject.toml` pins them). Still macOS-only: native apps
+  via `open -b`, Safari via AppleScript (`osascript`), Chrome via ScriptingBridge (Apple Events to a
+  specific PID), AeroSpace via its CLI. The config loader uses `tomllib` (stdlib).
+- **Permissions:** Safari and Chrome targets both need Automation (Apple Events) for the app running
+  deck (the terminal for dev, Elgato Stream Deck for buttons). `deck doctor` checks it. First Chrome
+  press shows a one-time "deck wants to control Google Chrome" prompt — approve it.
 - Verify the user's environment (Chrome binary path, workspace names, URLs); leave clearly-marked
   `TODO` placeholders for anything that can't be determined rather than guessing.

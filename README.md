@@ -26,10 +26,12 @@ personal Gmail in Chrome. The browser boundary *is* the isolation.
 - [uv](https://docs.astral.sh/uv/). Python **3.11+** is required (for `tomllib`);
   uv reads `.python-version` and auto-provisions 3.12 on first run — no manual
   interpreter setup.
-- macOS permissions for the app that runs deck (your terminal during dev, the
-  **Elgato Stream Deck** app for buttons): **Accessibility** (Chrome tab dedup
-  reads each window's URL via the AX API) and **Automation** (Safari targets).
-  `deck doctor` reports whether each is granted.
+- **Automation** (Apple Events) permission for the app that runs deck (your
+  terminal during dev, the **Elgato Stream Deck** app for buttons) → Safari and
+  Google Chrome. Chrome tab dedup talks to the default-profile Chrome via
+  ScriptingBridge, so it sees background tabs too. The first Chrome press shows a
+  one-time "deck wants to control Google Chrome" prompt — approve it. `deck
+  doctor` reports whether Automation is granted.
 
 ## Install
 

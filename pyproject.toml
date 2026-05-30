@@ -3,7 +3,14 @@ name = "deck"
 version = "0.1.0"
 description = "Idempotently open macOS apps/tabs on AeroSpace workspaces for Stream Deck"
 requires-python = ">=3.11"
-dependencies = ["typer>=0.12", "rich>=13"]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    # Chrome tab dedup talks to a SPECIFIC Chrome PID via ScriptingBridge
+    # (Apple Events addressed by process id), which is immune to the user's
+    # multiple --app Chrome instances and can see background tabs.
+    "pyobjc-framework-ScriptingBridge>=10",
+]
 
 [project.scripts]
 deck = "deck.cli:main"
