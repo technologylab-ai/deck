@@ -161,3 +161,11 @@ def workspace_of(window_id: str) -> str | None:
         if w["window_id"] == window_id:
             return w["workspace"]
     return None
+
+
+def current_workspace() -> str | None:
+    """Return the name of the currently-focused workspace, or None."""
+    proc = _run(["list-workspaces", "--focused"])
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None

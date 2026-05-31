@@ -272,15 +272,28 @@ id and path, so you can copy the right one.</div>
 
 <h3>Open on the current workspace</h3>
 <p>Instead of a fixed workspace number, set <code>workspace = "current"</code> to
-open a target wherever you happen to be — and leave it there. Good for a
+open a target wherever you happen to be — and leave it there (no move). Good for a
 &ldquo;summon it near me&rdquo; app like ChatGPT:</p>
 <pre><code>[chatgpt]
 type = "app"
 bundle = "com.openai.chat"
 workspace = "current"</code></pre>
-<p>A press opens it on your focused workspace with no move. If it&rsquo;s
-<em>already</em> open on another workspace, the press just jumps to it there (deck&rsquo;s
-normal focus behavior) rather than dragging it around.</p>
+<p>What counts as &ldquo;already open&rdquo; differs by type:</p>
+<ul>
+  <li><strong>App targets are global.</strong> If the app is running anywhere, a
+  press focuses it where it lives; otherwise it launches on your current
+  workspace. (Re-launching an app just re-activates its existing window, so
+  &ldquo;go to it&rdquo; is the only sensible move.)</li>
+  <li><strong>Browser targets are workspace-local.</strong> Only a matching tab
+  <em>on the workspace you&rsquo;re on</em> counts. A matching tab on another
+  workspace is ignored — so a press opens a fresh one <strong>here</strong>
+  instead of yanking you to wherever an old tab happens to live.</li>
+</ul>
+<div class="callout aha"><span class="tag">Why browser is workspace-local</span>
+If you keep several tabs of the same site open (say a few Gemini conversations on
+different workspaces), a global match would always pull you to one of those when
+you just wanted a fresh one here. Workspace-local <code>current</code> gives you
+&ldquo;Gemini, right here&rdquo; every time.</div>
 </section>
 
 <section id="permissions">

@@ -114,9 +114,16 @@ implies a web target; `type = "app"` is a native app. Adding a target must requi
 
 `workspace` is an AeroSpace workspace name, or the sentinel `"current"`
 (`config.CURRENT_WORKSPACE`): open the target on the focused workspace and skip the move (a new
-window already lands there). An already-open `"current"` target still focuses where it lives —
-deck never drags an existing window around. The `_is_current()` branch in `cli._live_open` is the
-only divergence from the normal create→place→switch path.
+window already lands there). "Already open" depends on kind:
+- **app `current`** — global: focus the running app wherever it lives (re-launch only re-activates
+  it, so "go to it" is the only sane move).
+- **browser `current`** — *workspace-local*: in `cli._live_open`, a `find()` match whose window is
+  NOT on `aerospace.current_workspace()` is discarded (`handle = None`) so deck opens a fresh tab
+  here instead of being yanked to a matching tab on another workspace. This is the fix for keeping
+  several tabs of one site (e.g. Gemini) across workspaces.
+
+The `_is_current()` branch (skip-move) and the workspace-local discard are the only divergences
+from the normal create→place→switch path.
 
 ## CLI surface
 

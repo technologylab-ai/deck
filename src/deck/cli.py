@@ -112,6 +112,24 @@ def cmd_open(
 def _live_open(target, backend) -> int:
     handle = backend.find(target)
 
+    # Workspace-local dedup for `workspace = "current"` browser targets: a tab
+    # matching on ANOTHER workspace must NOT count as "already open" — otherwise
+    # a press yanks you to some unrelated tab elsewhere instead of opening one
+    # here. Only a match on the focused workspace is a real hit; otherwise fall
+    # through to create a fresh one here. (Apps stay global: re-launching an app
+    # that lives elsewhere only re-activates it, so "go to it" is the sane path.)
+    if handle is not None and _is_current(target) and target.kind in ("safari", "chrome"):
+        cur = aerospace.current_workspace()
+        found_ws = (
+            aerospace.workspace_of(handle.window_id) if handle.window_id else None
+        )
+        if found_ws != cur:
+            _log.info(
+                "open %s: match on ws=%s, focused ws=%s -> opening here instead",
+                target.name, found_ws, cur,
+            )
+            handle = None
+
     if handle is not None:
         backend.focus(handle)
         # Switch to whatever workspace the focused window lives on.

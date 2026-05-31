@@ -106,10 +106,17 @@ workspace = "current"         # open on the focused workspace; don't move it
 ```
 
 `workspace` is an AeroSpace workspace name, or the special value `"current"` to
-open the target on whatever workspace is focused and leave it there. With
-`"current"`, a fresh window opens where you are; if the target is *already* open
-elsewhere, a press just jumps to it (deck's normal focus). Handy for a "summon it
-near me" app like ChatGPT.
+open the target on whatever workspace is focused and leave it there (no move).
+What "already open" means depends on the target type:
+
+- **App `current` target** — global: if the app is running anywhere, a press
+  focuses it where it lives; otherwise it launches on your focused workspace.
+  Handy for a single-instance "summon it near me" app like ChatGPT.
+- **Browser `current` target** — *workspace-local*: only a matching tab **on the
+  workspace you're on** counts as open. A matching tab on another workspace is
+  ignored, so a press opens a fresh one **here** instead of yanking you away.
+  This is what you want for a browser app you keep several tabs of (e.g. Gemini
+  conversations scattered across workspaces).
 
 See `targets.toml.example` for the full set.
 
