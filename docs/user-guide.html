@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deck — Stream Deck Plugin User Guide</title>
+<style>
+  :root{
+    --ink:#1c1e21; --muted:#5b6470; --line:#e4e7eb; --bg:#fbfbfa;
+    --card:#ffffff; --accent:#2d6cdf; --good:#1a7f37; --bad:#cf222e;
+    --warn:#9a6700; --code-bg:#f4f5f7; --shadow:0 1px 2px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 24px 96px}
+  header.hero{
+    max-width:860px; margin:0 auto; padding:56px 24px 28px;
+  }
+  .eyebrow{font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 8px}
+  h1{font-size:34px; line-height:1.15; margin:0 0 10px; letter-spacing:-.02em}
+  .lede{font-size:18px; color:var(--muted); margin:0; max-width:62ch}
+  .meta{margin-top:18px; font-size:13.5px; color:var(--muted)}
+  .meta code{background:var(--code-bg); padding:1px 6px; border-radius:5px}
+  h2{font-size:23px; margin:48px 0 14px; padding-top:8px; letter-spacing:-.01em; border-top:1px solid var(--line)}
+  h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:10px; font-weight:700}
+  h3{font-size:17px; margin:28px 0 8px}
+  p{margin:12px 0}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; background:var(--code-bg); padding:1px 5px; border-radius:5px}
+  pre{background:#0f1729; color:#e7ecf3; border-radius:10px; padding:16px 18px; overflow:auto; font-size:13px; line-height:1.55; box-shadow:var(--shadow)}
+  pre code{background:none; padding:0; color:inherit; font-size:inherit}
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 22px; box-shadow:var(--shadow); margin-top:24px}
+  .toc h4{margin:0 0 10px; font-size:12.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+  .toc ol{margin:0; padding-left:20px; columns:2; column-gap:32px}
+  .toc li{margin:4px 0; break-inside:avoid}
+  .callout{border-radius:10px; padding:14px 18px; margin:18px 0; border:1px solid var(--line); background:var(--card); box-shadow:var(--shadow)}
+  .callout .tag{font-weight:700; font-size:12.5px; letter-spacing:.04em; text-transform:uppercase; display:block; margin-bottom:4px}
+  .callout.key{border-left:4px solid var(--accent)} .callout.key .tag{color:var(--accent)}
+  .callout.aha{border-left:4px solid var(--good)} .callout.aha .tag{color:var(--good)}
+  .callout.trap{border-left:4px solid var(--bad)} .callout.trap .tag{color:var(--bad)}
+  .callout.note{border-left:4px solid var(--warn)} .callout.note .tag{color:var(--warn)}
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow)}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{background:#f3f5f8; font-size:12.5px; letter-spacing:.03em; text-transform:uppercase; color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  .verdict{font-weight:700; white-space:nowrap}
+  .verdict.no{color:var(--bad)} .verdict.yes{color:var(--good)}
+  .pill{display:inline-block; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; vertical-align:middle}
+  .pill.no{background:#ffe9e9; color:var(--bad)} .pill.yes{background:#e6f4ea; color:var(--good)}
+  .timeline{list-style:none; margin:18px 0; padding:0}
+  .timeline>li{position:relative; padding:2px 0 22px 28px; border-left:2px solid var(--line); margin-left:6px}
+  .timeline>li:last-child{border-left-color:transparent}
+  .timeline>li::before{content:""; position:absolute; left:-7px; top:6px; width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--bg)}
+  .timeline .step-t{font-weight:700}
+  .ev{font-size:13.5px; color:var(--muted)}
+  .ev b{color:var(--ink)}
+  .flow{counter-reset:s; margin:16px 0; padding:0; list-style:none}
+  .flow li{position:relative; padding:10px 14px 10px 46px; border:1px solid var(--line); border-radius:10px; background:var(--card); margin:8px 0; box-shadow:var(--shadow)}
+  .flow li::before{counter-increment:s; content:counter(s); position:absolute; left:12px; top:50%; transform:translateY(-50%); width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center}
+  footer{max-width:860px; margin:0 auto; padding:28px 24px; color:var(--muted); font-size:13px; border-top:1px solid var(--line)}
+  .kbd{font-family:ui-monospace,monospace; font-size:.85em; background:#fff; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px}
+  @media (max-width:640px){ .toc ol{columns:1} h1{font-size:27px} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">deck · user guide</p>
+  <h1>Install &amp; use the <code>deck</code> Stream Deck plugin</h1>
+  <p class="lede">Put a button on your Stream Deck that opens or focuses an app
+  or browser tab on the right AeroSpace workspace — tap to open, hold to close.
+  This is the practical how-to; the <a href="design-decisions.html">design
+  record</a> covers the why.</p>
+  <p class="meta">Platform: macOS · AeroSpace · Elgato Stream Deck 6.5+ &nbsp;|&nbsp;
+  You need: the <code>deck</code> CLI installed, Node 20+, the Stream Deck app.</p>
+
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#what">What you get</a></li>
+      <li><a href="#prereq">Before you start</a></li>
+      <li><a href="#install">Install the plugin</a></li>
+      <li><a href="#addbutton">Add a button</a></li>
+      <li><a href="#use">Using a button</a></li>
+      <li><a href="#newtarget">Add a new target</a></li>
+      <li><a href="#permissions">Permissions</a></li>
+      <li><a href="#troubleshoot">Troubleshooting</a></li>
+      <li><a href="#cheatsheet">Command cheat-sheet</a></li>
+    </ol>
+  </nav>
+</header>
+
+<main class="wrap">
+
+<section id="what">
+<h2><span class="num">1</span>What you get</h2>
+<p>One Stream Deck action — <strong>Open Target</strong> — that you drop onto a
+key and point at a target from your <code>deck</code> config. Once set, the key:</p>
+<ul>
+  <li>shows the right <strong>icon</strong> automatically (the site&rsquo;s favicon for a
+  browser tab, the app icon for a native app);</li>
+  <li>on a <strong>tap</strong>, opens the target — or, if it&rsquo;s already open, just
+  focuses it — and switches AeroSpace to its workspace;</li>
+  <li>on a <strong>long-press</strong> (hold ~0.5s), closes it — quits the app, or
+  closes the matched browser tab.</li>
+</ul>
+<div class="callout key"><span class="tag">The one thing to know</span>
+The plugin is a thin wrapper around the <code>deck</code> command-line tool. The
+buttons just run <code>deck open</code> / <code>deck close</code> for you. So if
+<code>deck</code> works in your terminal, the buttons work — and everything you
+configure lives in one file, <code>~/.config/deck/targets.toml</code>.</div>
+</section>
+
+<section id="prereq">
+<h2><span class="num">2</span>Before you start</h2>
+<p>Make sure these three things are true. Run the checks in a terminal:</p>
+<ul>
+  <li><strong>The <code>deck</code> CLI is installed</strong> at
+  <code>~/.local/bin/deck</code> (via <code>uv tool install --editable .</code> in
+  the repo). Verify:</li>
+</ul>
+<pre><code>deck doctor          # should report config, aerospace, osascript all ✓
+deck list            # should print your configured targets</code></pre>
+<ul>
+  <li><strong>Node.js 20 or newer</strong> is available (only needed to <em>build</em>
+  the plugin — the Stream Deck app supplies its own Node at runtime):
+  <code>node --version</code>.</li>
+  <li><strong>The Elgato Stream Deck app is installed and running</strong> (version
+  6.5 or newer).</li>
+</ul>
+<div class="callout note"><span class="tag">Why the absolute path matters</span>
+Stream Deck launches commands with a stripped-down <code>PATH</code> that does
+<em>not</em> include Homebrew. The plugin always calls <code>deck</code> by its full
+path <code>~/.local/bin/deck</code>, so that shim must exist. If
+<code>deck doctor</code> works but buttons don&rsquo;t, this is the usual cause — see
+<a href="#troubleshoot">Troubleshooting</a>.</div>
+</section>
+
+<section id="install">
+<h2><span class="num">3</span>Install the plugin</h2>
+<p>From the repo root, build the plugin and link it into Stream Deck. You only do
+this once (and again whenever you change the plugin&rsquo;s own code).</p>
+
+<ol class="flow">
+  <li><strong>Build it.</strong>
+  <pre><code>cd streamdeck-plugin
+npm install
+npm run build</code></pre>
+  This produces <code>ai.technologylab.deck.sdPlugin/bin/plugin.js</code>. (The repo
+  already ships a built copy, so you can skip straight to linking if you haven&rsquo;t
+  touched the plugin source.)</li>
+
+  <li><strong>Install the Elgato CLI</strong> (gives you the <code>streamdeck</code>
+  command):
+  <pre><code>npm i -g @elgato/cli</code></pre></li>
+
+  <li><strong>Enable developer mode.</strong> Required — without it Stream Deck
+  silently refuses to load a linked plugin.
+  <pre><code>streamdeck dev</code></pre></li>
+
+  <li><strong>Link the plugin.</strong>
+  <pre><code>streamdeck link ai.technologylab.deck.sdPlugin</code></pre>
+  Stream Deck loads it immediately. You should now see a <strong>deck</strong>
+  category in the actions list (right-hand panel of the Stream Deck app).</li>
+</ol>
+
+<div class="callout aha"><span class="tag">Did it load?</span>
+In the Stream Deck app, the actions list (top-right) should show a
+<strong>deck</strong> category containing <strong>Open Target</strong>. If it&rsquo;s
+there, you&rsquo;re done installing.</div>
+
+<h3>Updating later</h3>
+<p>After editing plugin source, rebuild and restart it:</p>
+<pre><code>npm run build
+streamdeck restart ai.technologylab.deck</code></pre>
+<p>Changes to your <strong>targets</strong> (in <code>targets.toml</code>) need none of
+this — see <a href="#newtarget">Add a new target</a>.</p>
+</section>
+
+<section id="addbutton">
+<h2><span class="num">4</span>Add a button</h2>
+<ol class="flow">
+  <li>In the Stream Deck app, find <strong>deck &rarr; Open Target</strong> in the
+  actions list and <strong>drag it onto a key</strong>.</li>
+  <li>With the key selected, the settings panel below shows a <strong>Target</strong>
+  dropdown. Open it — it&rsquo;s populated live from your config — and pick a target
+  (e.g. <code>hey</code>, <code>synadia-gmail</code>, <code>outlook</code>).</li>
+  <li>The key&rsquo;s <strong>icon updates automatically</strong>: a favicon for web
+  targets, the app icon for native apps.</li>
+  <li><em>(Optional)</em> Type a <strong>Title</strong> to label the key. Leave it
+  blank to use the target name; clear it to show just the icon.</li>
+</ol>
+<div class="callout note"><span class="tag">No icon appeared?</span>
+The icon comes from <code>deck icon &lt;target&gt;</code>. Web icons need network
+access the first time (they&rsquo;re cached afterward). If a key stays blank, run
+<code>deck icon &lt;target&gt;</code> in a terminal to see the error — details in
+<a href="#troubleshoot">Troubleshooting</a>.</div>
+</section>
+
+<section id="use">
+<h2><span class="num">5</span>Using a button</h2>
+<table>
+  <thead><tr><th>Gesture</th><th>What happens</th><th>Runs</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Tap</strong></td>
+      <td>Opens the target if it isn&rsquo;t open; otherwise just focuses the existing
+      window/tab. Either way, AeroSpace switches to its workspace.</td>
+      <td><code>deck open &lt;target&gt;</code></td>
+    </tr>
+    <tr>
+      <td><strong>Long-press</strong><br><span class="ev">hold ~0.5s</span></td>
+      <td>Closes the target: quits a native app, or closes the matched browser
+      tab. Releasing after the press is registered does nothing else.</td>
+      <td><code>deck close &lt;target&gt;</code></td>
+    </tr>
+  </tbody>
+</table>
+<p>The key flashes a green <strong>✓</strong> on success or a yellow <strong>⚠</strong>
+if something went wrong (e.g. a permission prompt is waiting, or no target is
+selected).</p>
+<div class="callout note"><span class="tag">Close quits the whole app</span>
+For a native target, a long-press <strong>quits the app</strong> (all its windows),
+mirroring Stream Deck&rsquo;s built-in app toggle. For a browser target it closes only
+the one matched tab.</div>
+<div class="callout key"><span class="tag">First press is special</span>
+The very first time a button touches Chrome, Safari, or quits an app, macOS shows
+a one-time permission prompt — <strong>approve it</strong> and press again. See
+<a href="#permissions">Permissions</a>.</div>
+</section>
+
+<section id="newtarget">
+<h2><span class="num">6</span>Add a new target</h2>
+<p>This is the payoff: <strong>adding a target never touches the plugin.</strong> Edit
+one file and it shows up in the dropdown.</p>
+<ol class="flow">
+  <li>Open <code>~/.config/deck/targets.toml</code> and add a table. For a web tab:
+  <pre><code>[notion]
+browser = "chrome"            # safari | chrome
+url = "https://notion.so"
+workspace = "2"               # an AeroSpace workspace name
+match = "notion.so"           # dedup substring (defaults to url)</code></pre>
+  </li>
+  <li>For a <strong>native app</strong>, first look up its bundle id with
+  <code>deck bundle &lt;name&gt;</code> — it resolves an app name (matching fuzzily)
+  to the bundle id and path:
+  <pre><code>$ deck bundle slack
+App    Bundle ID                  Path
+Slack  com.tinyspeck.slackmacgap  /Applications/Slack.app</code></pre>
+  Then add the app target with that bundle id:
+  <pre><code>[slack]
+type = "app"
+bundle = "com.tinyspeck.slackmacgap"
+workspace = "2"</code></pre></li>
+  <li>Test it in the terminal: <code>deck open notion</code> (or
+  <code>deck open slack</code>).</li>
+  <li>In the Stream Deck app, select your <strong>Open Target</strong> key and re-open
+  the <strong>Target</strong> dropdown — the new target is there. Pick it; the icon
+  appears. No rebuild, no relink.</li>
+</ol>
+<div class="callout aha"><span class="tag">deck bundle handles the tricky names</span>
+Bundle ids often aren&rsquo;t what you&rsquo;d guess: <code>deck bundle teams</code> &rarr;
+<code>com.microsoft.teams2</code>, <code>deck bundle telegram</code> &rarr;
+<code>ru.keepcoder.Telegram</code>. A fuzzy query lists every matching app with its
+id and path, so you can copy the right one.</div>
+</section>
+
+<section id="permissions">
+<h2><span class="num">7</span>Permissions</h2>
+<p>Driving Chrome/Safari and quitting apps happens through macOS
+<strong>Automation</strong> (Apple Events). Because the plugin runs <em>inside</em> the
+Stream Deck app, macOS attributes these to <strong>Elgato Stream Deck</strong> — so you
+grant access once per controlled app, not once per button.</p>
+<ul>
+  <li>The first time a button <strong>opens/closes a Chrome target</strong>: approve
+  &ldquo;Elgato Stream Deck wants to control Google Chrome&rdquo;.</li>
+  <li>Same for <strong>Safari</strong>, and the first time a long-press
+  <strong>quits a native app</strong>.</li>
+  <li>AeroSpace placement uses a plain CLI call — no permission prompt.</li>
+</ul>
+<p>You can review or toggle these later in <strong>System Settings → Privacy &amp;
+Security → Automation</strong>. To check status from the terminal:</p>
+<pre><code>deck doctor          # reports Automation for the browsers your targets use</code></pre>
+<div class="callout note"><span class="tag">Only open/close need permission</span>
+The config helpers send <em>no</em> Apple Events and never prompt:
+<code>deck list</code>, <code>deck icon</code> and <code>deck bundle</code> all use
+Spotlight / Launch Services, not AppleScript. Only <code>deck open</code> and
+<code>deck close</code> drive an app, so those are the only ones that can trigger an
+Automation prompt.</div>
+<div class="callout trap"><span class="tag">There is no &ldquo;allow all&rdquo; switch</span>
+macOS Automation is intentionally per-app: the list under
+<strong>Privacy &amp; Security → Automation</strong> only shows pairs you&rsquo;ve already
+been prompted for, so you can&rsquo;t pre-approve every app at once. Approve each
+controlled app the first time you press its button. If you denied one by accident
+the button flashes ⚠ and does nothing — re-enable
+<strong>Elgato Stream Deck → &lt;app&gt;</strong> there and press again.</div>
+</section>
+
+<section id="troubleshoot">
+<h2><span class="num">8</span>Troubleshooting</h2>
+<table>
+  <thead><tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Open Target isn&rsquo;t in the actions list</strong></td>
+      <td>Developer mode off, or the link didn&rsquo;t take. Run
+      <code>streamdeck dev</code>, then
+      <code>streamdeck restart ai.technologylab.deck</code>. Confirm the plugin is
+      linked under <code>~/Library/Application Support/com.elgato.StreamDeck/Plugins/</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Dropdown is empty</strong></td>
+      <td><code>deck list --json</code> failed. In a terminal, run it: if it errors,
+      fix your <code>targets.toml</code> (<code>deck doctor</code> pinpoints the
+      problem). Also confirm <code>~/.local/bin/deck</code> exists.</td>
+    </tr>
+    <tr>
+      <td><strong>Button flashes ⚠ and nothing opens</strong></td>
+      <td>Usually a pending/denied Automation prompt (see
+      <a href="#permissions">Permissions</a>), or no target selected. Check the
+      plugin log (below) for the exact <code>deck</code> exit.</td>
+    </tr>
+    <tr>
+      <td><strong>Key shows no icon</strong></td>
+      <td>Run <code>deck icon &lt;target&gt;</code> in a terminal. Web icons need
+      network on first fetch; app icons need the app installed. Force a rebuild with
+      <code>deck icon &lt;target&gt; --refresh</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>App opens on the wrong workspace</strong></td>
+      <td><code>deck</code> waits for the new window, then moves it. A very slow
+      cold-start can still surprise you on the rare edge; just press again, or pin
+      the app statically with an <code>on-window-detected</code> rule (see
+      <code>aerospace-snippet.toml</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>Wrong Chrome window/tab gets focused</strong></td>
+      <td>Expected only if your <em>real</em> browsing happens in a non-default
+      Chrome profile — <code>deck</code> targets the default profile by design. Move
+      the tab there, or keep Synadia in Safari / personal in Chrome as intended.</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Reading the plugin log</h3>
+<p>The plugin writes its own log next to the build:</p>
+<pre><code>tail -f streamdeck-plugin/ai.technologylab.deck.sdPlugin/logs/*.log</code></pre>
+<p><code>deck</code> itself logs to <code>~/.local/state/deck/deck.log</code>.</p>
+</section>
+
+<section id="cheatsheet">
+<h2><span class="num">9</span>Command cheat-sheet</h2>
+<table>
+  <thead><tr><th>Command</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><code>deck open &lt;t&gt;</code></td><td>Open or focus a target (what a tap runs).</td></tr>
+    <tr><td><code>deck close &lt;t&gt;</code></td><td>Quit the app / close the matched tab (what a long-press runs).</td></tr>
+    <tr><td><code>deck list</code></td><td>Show configured targets (<code>--json</code> for the plugin).</td></tr>
+    <tr><td><code>deck icon &lt;t&gt;</code></td><td>Print the button image as a data URL (<code>--refresh</code> to rebuild).</td></tr>
+    <tr><td><code>deck bundle &lt;q&gt;</code></td><td>Find an app&rsquo;s bundle id for <code>targets.toml</code>.</td></tr>
+    <tr><td><code>deck doctor</code></td><td>Check config, binaries, and Automation permissions.</td></tr>
+    <tr><td><code>deck --dry-run open &lt;t&gt;</code></td><td>Print the plan without acting (works for <code>close</code> too).</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Plugin command</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><code>streamdeck dev</code></td><td>Enable developer mode (needed before linking).</td></tr>
+    <tr><td><code>streamdeck link &lt;sdPlugin&gt;</code></td><td>Register the plugin with Stream Deck.</td></tr>
+    <tr><td><code>streamdeck restart ai.technologylab.deck</code></td><td>Reload after a rebuild.</td></tr>
+    <tr><td><code>streamdeck pack &lt;sdPlugin&gt;</code></td><td>Build a distributable <code>.streamDeckPlugin</code> file.</td></tr>
+  </tbody>
+</table>
+</section>
+
+</main>
+
+<footer>
+  A user guide for the <code>deck</code> Stream Deck plugin. For the engineering
+  rationale see <a href="design-decisions.html">Design Decisions &amp; Learnings</a>;
+  for the full reference see <code>README.md</code> and <code>CLAUDE.md</code>.
+</footer>
+
+</body>
+</html>

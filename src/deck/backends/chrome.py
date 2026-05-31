@@ -174,6 +174,18 @@ class ChromeBackend:
             detail=f"new Chrome window -> {target.url}",
         )
 
+    def close(self, handle: Handle) -> None:
+        # Close just the matched tab via the same PID-addressed SB window object
+        # find() resolved it from (its window/tab refs are live for this run).
+        w = handle.ref.get("sb_window")
+        ti = handle.ref.get("tab_index")
+        if w is None or ti is None:
+            return
+        tabs = w.tabs()
+        if tabs is None or ti >= len(tabs):
+            return
+        tabs[ti].close()
+
     def new_window_id(self, target: Target, before_ids, timeout: float = 2.0):
         return aerospace.find_new_window(before_ids, APP_NAME, timeout=timeout)
 
@@ -195,3 +207,10 @@ class ChromeBackend:
         if handle.window_id:
             lines.append(f"aerospace focus --window-id {handle.window_id}")
         return lines
+
+    def describe_close(self, handle: Handle) -> list[str]:
+        ti = handle.ref.get("tab_index")
+        return [
+            f"ScriptingBridge: close tab {(ti + 1) if ti is not None else '?'} "
+            f"in '{handle.ref.get('title', '')}'"
+        ]

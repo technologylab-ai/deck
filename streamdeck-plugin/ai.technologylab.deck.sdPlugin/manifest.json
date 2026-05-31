@@ -1,0 +1,43 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "ai.technologylab.deck",
+	"Name": "deck",
+	"Version": "1.0.0.0",
+	"Author": "technologylab.ai",
+	"URL": "https://github.com/technologylab-ai",
+	"Description": "Open or focus macOS apps and browser tabs on their AeroSpace workspace, idempotently. Each button shells out to the `deck` CLI; pick a target from the live config.",
+	"Category": "deck",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 2,
+	"CodePath": "bin/plugin.js",
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12.0"
+		}
+	],
+	"Actions": [
+		{
+			"Name": "Open Target",
+			"UUID": "ai.technologylab.deck.open",
+			"Icon": "imgs/actions/open/icon",
+			"Tooltip": "Open or focus a deck target on its AeroSpace workspace.",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/open-target.html",
+			"States": [
+				{
+					"Image": "imgs/actions/open/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		}
+	]
+}

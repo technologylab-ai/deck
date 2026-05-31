@@ -10,6 +10,10 @@ dependencies = [
     # (Apple Events addressed by process id), which is immune to the user's
     # multiple --app Chrome instances and can see background tabs.
     "pyobjc-framework-ScriptingBridge>=10",
+    # `deck icon` renders native app icons via NSWorkspace/NSBitmapImageRep.
+    # Cocoa already arrives transitively through ScriptingBridge; pin it
+    # explicitly since icons.py imports AppKit directly.
+    "pyobjc-framework-Cocoa>=10",
 ]
 
 [project.scripts]

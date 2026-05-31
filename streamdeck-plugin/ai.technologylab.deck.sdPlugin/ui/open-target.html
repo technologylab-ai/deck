@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Open Target</title>
+		<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+	</head>
+	<body>
+		<sdpi-item label="Target">
+			<sdpi-select setting="target" datasource="getTargets" placeholder="Pick a target…"></sdpi-select>
+		</sdpi-item>
+		<sdpi-item label="Title">
+			<sdpi-textfield setting="title" placeholder="(defaults to the target name)"></sdpi-textfield>
+		</sdpi-item>
+		<details>
+			<summary>About</summary>
+			<small>
+				The dropdown is populated live from <code>deck list</code>; add a target to
+				<code>~/.config/deck/targets.toml</code> and it appears here with no plugin
+				change. The button icon comes from <code>deck icon</code>. Tap to open or
+				focus the target; long-press to close it.
+			</small>
+		</details>
+	</body>
+</html>

@@ -51,6 +51,25 @@ end tell
 '''
 
 
+def _close_script(match: str) -> str:
+    m = _osa_str(match)
+    return f'''
+if application "Safari" is not running then return "NONE"
+tell application "Safari"
+    set theMatch to "{m}"
+    repeat with w in windows
+        repeat with t in tabs of w
+            if (URL of t is not missing value) and (URL of t contains theMatch) then
+                close t
+                return "CLOSED"
+            end if
+        end repeat
+    end repeat
+    return "NONE"
+end tell
+'''
+
+
 def _create_script(url: str) -> str:
     u = _osa_str(url)
     return f'''
@@ -87,6 +106,10 @@ class SafariBackend:
             detail=f"new Safari window -> {target.url}",
         )
 
+    def close(self, handle: Handle) -> None:
+        match = handle.ref.get("match", "")
+        run_osascript(_close_script(match))
+
     def new_window_id(self, target: Target, before_ids, timeout: float = 2.0):
         return find_new_window(before_ids, APP_NAME, timeout=timeout)
 
@@ -99,4 +122,10 @@ class SafariBackend:
         match = handle.ref.get("match", "")
         return [
             f"osascript: tell Safari to select tab matching '{match}' + activate",
+        ]
+
+    def describe_close(self, handle: Handle) -> list[str]:
+        match = handle.ref.get("match", "")
+        return [
+            f"osascript: tell Safari to close tab matching '{match}'",
         ]

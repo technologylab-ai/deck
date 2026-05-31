@@ -4,6 +4,7 @@ Stream Deck buttons call `deck open <target>`. Presses must feel instant, so we
 keep imports light and do the minimum work per command.
 """
 
+import json
 import shutil
 import subprocess
 import sys
@@ -129,12 +130,19 @@ def _live_open(target, backend) -> int:
     # Not open yet: create, resolve the new window, place + switch.
     before = aerospace.window_ids()
     handle = backend.create(target)
-    new_id = backend.new_window_id(target, before, timeout=2.0)
+    # Native apps can cold-start slowly (Outlook/Teams take several seconds to
+    # draw their first window); browsers usually attach to an already-running
+    # instance. new_window_id() returns the instant the window appears, so a
+    # generous ceiling only costs wall-clock on an actual failure.
+    launch_timeout = 15.0 if target.kind == "app" else 8.0
+    new_id = backend.new_window_id(target, before, timeout=launch_timeout)
     if new_id is None:
         _err(
-            f"opened {target.name} but could not find its new window to place it "
-            f"(it may still be launching). Configure an on-window-detected rule "
-            f"or retry."
+            f"opened {target.name} but its window did not appear within "
+            f"{launch_timeout:.0f}s, so it was left where it launched. Either "
+            f"retry 'deck open {target.name}', or pin it statically with an "
+            f"on-window-detected rule (see aerospace-snippet.toml) so AeroSpace "
+            f"places it regardless of launch speed."
         )
         return 1
     aerospace.place_and_switch(new_id, target.workspace)
@@ -179,18 +187,115 @@ def _dry_run_open(target, backend) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# close
+# --------------------------------------------------------------------------- #
+
+
+@app.command("close")
+def cmd_close(
+    ctx: typer.Context,
+    target: str = typer.Argument(..., help="target name (see 'deck list')"),
+) -> None:
+    """Close a target: quit an app, or close the matched browser tab.
+
+    Idempotent — closing an already-closed target is a no-op success. This is
+    the verb the Stream Deck plugin calls on a long-press.
+    """
+    try:
+        cfg = config.load()
+    except config.ConfigError as exc:
+        _err(str(exc))
+        raise typer.Exit(code=1)
+
+    tgt = cfg.targets.get(target)
+    if tgt is None:
+        _err(f"unknown target '{target}'. Try 'deck list'.")
+        raise typer.Exit(code=1)
+    if cfg.errors and any(target in e for e in cfg.errors):
+        for e in cfg.errors:
+            if target in e:
+                _err(e)
+        raise typer.Exit(code=1)
+
+    backend = get_backend(tgt)
+    _log.info("close %s (kind=%s)", tgt.name, tgt.kind)
+
+    if ctx.obj.dry_run:
+        raise typer.Exit(code=_dry_run_close(tgt, backend))
+
+    try:
+        raise typer.Exit(code=_live_close(tgt, backend))
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        _log.exception("close %s failed", tgt.name)
+        _err(f"close {tgt.name} failed: {exc}")
+        raise typer.Exit(code=1)
+
+
+def _live_close(target, backend) -> int:
+    handle = backend.find(target)
+    if handle is None:
+        console.print(f"{target.name} not open (nothing to close)")
+        return 0
+    backend.close(handle)
+    console.print(f"closed {target.name}")
+    return 0
+
+
+def _dry_run_close(target, backend) -> int:
+    console.print(
+        f"[dim]\\[dry-run][/] close {target.name}  (kind={target.kind})"
+    )
+    handle = None
+    try:
+        handle = backend.find(target)
+    except Exception as exc:
+        console.print(f"  find: error ({exc})")
+    if handle is None:
+        console.print("  match: not open (nothing to close)")
+        return 0
+    console.print(f"  match: {handle.detail}")
+    for line in backend.describe_close(handle):
+        console.print(f"  would close: {line}")
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # list
 # --------------------------------------------------------------------------- #
 
 
 @app.command("list")
-def cmd_list() -> None:
+def cmd_list(
+    as_json: bool = typer.Option(
+        False, "--json", help="emit JSON (used by the Stream Deck plugin)"
+    ),
+) -> None:
     """List configured targets."""
     try:
         cfg = config.load()
     except config.ConfigError as exc:
         _err(str(exc))
         raise typer.Exit(code=1)
+
+    if as_json:
+        items = []
+        for name, t in cfg.targets.items():
+            item = {
+                "name": name,
+                "kind": t.kind,
+                "workspace": t.workspace,
+                "mode": t.mode,
+            }
+            if t.kind == "app":
+                item["bundle"] = t.bundle
+            else:
+                item["url"] = t.url
+            items.append(item)
+        # print() (not Rich) so output is clean JSON for the plugin to parse.
+        print(json.dumps(items))
+        return
 
     if not cfg.targets:
         console.print("no targets configured")
@@ -215,6 +320,146 @@ def cmd_list() -> None:
 
     for e in cfg.errors:
         _err(e)
+
+
+# --------------------------------------------------------------------------- #
+# bundle — resolve an app name/query to a bundle id (config helper)
+# --------------------------------------------------------------------------- #
+
+
+@app.command("bundle")
+def cmd_bundle(
+    query: str = typer.Argument(..., help="app name or fuzzy substring"),
+) -> None:
+    """Find an app's bundle id to paste into targets.toml."""
+    rows: list[tuple[str, str, str]] = []  # (app, bundle, path)
+    seen: set[str] = set()
+
+    # Exact-ish path: Launch Services resolves "Microsoft Teams" -> the app.
+    exact = _bundle_exact(query)
+    if exact:
+        rows.append(exact)
+        seen.add(exact[1])
+
+    # Fuzzy path: Spotlight metadata for app bundles whose display name matches.
+    for app_name, bundle, path in _bundle_fuzzy(query):
+        if bundle in seen:
+            continue
+        seen.add(bundle)
+        rows.append((app_name, bundle, path))
+
+    if not rows:
+        _err(f"no app found matching '{query}'")
+        raise typer.Exit(code=1)
+
+    table = Table(show_edge=False, pad_edge=False, box=None)
+    table.add_column("App", style="bold cyan")
+    table.add_column("Bundle ID", style="green")
+    table.add_column("Path", style="dim")
+    for app_name, bundle, path in rows:
+        table.add_row(app_name, bundle, path)
+    console.print(table)
+
+
+def _bundle_exact(query: str) -> tuple[str, str, str] | None:
+    """Resolve an exact-ish app name to its bundle id via Launch Services.
+
+    Uses NSWorkspace + NSBundle (pure Launch Services / file reads) — NOT
+    AppleScript. The old `osascript 'id of app "X"'` approach sent an Apple Event
+    that made macOS prompt "<terminal> wants to control <App>" for every lookup;
+    a bundle-id query needs no such permission.
+    """
+    try:
+        from AppKit import NSWorkspace  # noqa: PLC0415
+        from Foundation import NSBundle  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    path = NSWorkspace.sharedWorkspace().fullPathForApplication_(query)
+    if not path:
+        return None
+    bundle_obj = NSBundle.bundleWithPath_(path)
+    bundle = bundle_obj.bundleIdentifier() if bundle_obj else None
+    if not bundle:
+        return None
+    name = path.rstrip("/").rsplit("/", 1)[-1].removesuffix(".app") or query
+    return (name, bundle, path)
+
+
+def _bundle_fuzzy(query: str) -> list[tuple[str, str, str]]:
+    """Spotlight-driven fuzzy lookup of app bundles matching the query."""
+    safe = query.replace('"', '').replace("'", "")
+    mdfind_q = (
+        "kMDItemContentType == 'com.apple.application-bundle' && "
+        f"kMDItemDisplayName == '*{safe}*'c"
+    )
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/mdfind", mdfind_q],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    out: list[tuple[str, str, str]] = []
+    for path in proc.stdout.splitlines():
+        path = path.strip()
+        if not path:
+            continue
+        try:
+            mp = subprocess.run(
+                ["/usr/bin/mdls", "-name", "kMDItemCFBundleIdentifier", "-raw", path],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+        bundle = mp.stdout.strip()
+        if not bundle or bundle == "(null)":
+            continue
+        name = path.rsplit("/", 1)[-1].removesuffix(".app")
+        out.append((name, bundle, path))
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# icon — emit a data:image/png URL for a target (Stream Deck setImage)
+# --------------------------------------------------------------------------- #
+
+
+@app.command("icon")
+def cmd_icon(
+    target: str = typer.Argument(..., help="target name (see 'deck list')"),
+    size: int = typer.Option(288, "--size", help="icon size in pixels"),
+    refresh: bool = typer.Option(
+        False, "--refresh", help="rebuild the cached icon"
+    ),
+) -> None:
+    """Print a data:image/png;base64 URL for a target's icon."""
+    from . import icons
+
+    try:
+        cfg = config.load()
+    except config.ConfigError as exc:
+        _err(str(exc))
+        raise typer.Exit(code=1)
+
+    tgt = cfg.targets.get(target)
+    if tgt is None:
+        _err(f"unknown target '{target}'. Try 'deck list'.")
+        raise typer.Exit(code=1)
+
+    try:
+        url = icons.data_url(tgt, size=size, refresh=refresh)
+    except icons.IconError as exc:
+        _err(f"icon {target}: {exc}")
+        raise typer.Exit(code=1)
+    # Bare print so the plugin captures only the data URL (no Rich styling).
+    print(url)
 
 
 # --------------------------------------------------------------------------- #

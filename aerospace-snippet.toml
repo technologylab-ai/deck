@@ -1,9 +1,21 @@
 # deck — AeroSpace on-window-detected rules (paste into ~/.config/aerospace/aerospace.toml)
 #
 # These statically pin app-type targets to their workspace, so the window lands
-# correctly even before `deck`'s dynamic move runs (and on normal launches too).
+# correctly the instant AeroSpace detects it — even before `deck`'s dynamic move
+# runs, and on normal (non-deck) launches too. This is what makes placement
+# robust for slow cold-starters like Outlook/Teams, where the launch can outrun
+# deck's window-watch. `deck open` still adds the "jump to that workspace" focus.
+#
 # One rule per app-type target. After pasting, run: aerospace reload-config
 
 [[on-window-detected]]
 if.app-id = 'com.microsoft.Outlook'
+run = 'move-node-to-workspace 1'
+
+[[on-window-detected]]
+if.app-id = 'com.microsoft.teams2'
+run = 'move-node-to-workspace 1'
+
+[[on-window-detected]]
+if.app-id = 'ru.keepcoder.Telegram'
 run = 'move-node-to-workspace 1'

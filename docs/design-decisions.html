@@ -74,7 +74,8 @@
   <p class="eyebrow">deck · design record</p>
   <h1>Why <code>deck</code> opens Chrome tabs the way it does</h1>
   <p class="lede">The reasoning, dead ends, and live evidence behind the Chrome
-  backend — the parts that the source code can&rsquo;t tell you on its own.</p>
+  backend — the parts that the source code can&rsquo;t tell you on its own. Just
+  want to install and use it? See the <a href="user-guide.html">user guide</a>.</p>
   <p class="meta">Scope: macOS · AeroSpace · Chrome 148 · Stream Deck &nbsp;|&nbsp;
   Audience: future maintainers (human or AI) &nbsp;|&nbsp;
   Companion to <code>CLAUDE.md</code> and <code>src/deck/backends/chrome.py</code>.</p>
@@ -92,6 +93,7 @@
       <li><a href="#primitives">Primitives we learned</a></li>
       <li><a href="#permissions">Permissions model</a></li>
       <li><a href="#limits">Limits &amp; future</a></li>
+      <li><a href="#streamdeck">Stream Deck wiring &amp; icons</a></li>
     </ol>
   </nav>
 </header>
@@ -388,15 +390,71 @@ grant can be removed.</div>
   A tab living only in a separate <code>--user-data-dir</code> profile wouldn&rsquo;t be
   found. If that ever matters, add a per-target <code>profile</code>/<code>user-data-dir</code>
   field in <code>targets.toml</code> so a target can name which instance to query.</li>
-  <li><strong>Phase 2</strong> (<code>mode = "app"</code> &rarr; <code>--app=&lt;url&gt;</code>
-  windows) and <strong>Phase 3</strong> (Stream Deck wiring) are still ahead. The
-  ScriptingBridge dedup already generalizes to app-mode windows, since they&rsquo;re just
-  windows/tabs in the same default-profile instance.</li>
+  <li><strong>Phase 3</strong> (Stream Deck wiring) is <strong>done</strong> &mdash; see
+  &sect;11. <strong>Phase 2</strong> (<code>mode = "app"</code> &rarr;
+  <code>--app=&lt;url&gt;</code> windows) is still ahead. The ScriptingBridge dedup already
+  generalizes to app-mode windows, since they&rsquo;re just windows/tabs in the same
+  default-profile instance.</li>
 </ul>
 <div class="callout aha"><span class="tag">The one-line takeaway</span>
 If you remember nothing else: <strong>the user runs several Chrome instances under
 one bundle id, so address Chrome by PID with ScriptingBridge — never by name with
 AppleScript.</strong> Everything else follows from that.</div>
+</section>
+
+<section id="streamdeck">
+<h2><span class="num">11</span>Phase 3: Stream Deck wiring &amp; icons</h2>
+<p>The buttons run a <strong>dedicated Elgato SDK&nbsp;v2 plugin</strong>
+(<code>ai.technologylab.deck</code>), not a third-party command-runner. The plugin is
+deliberately <strong>thin</strong>: it holds no logic and shells out to
+<code>~/.local/bin/deck</code> for everything &mdash; dropdown &larr;
+<code>deck&nbsp;list&nbsp;--json</code>, button image &larr; <code>deck&nbsp;icon</code>,
+tap &rarr; <code>deck&nbsp;open</code>, long-press &rarr; <code>deck&nbsp;close</code>. All
+the real behavior stays in Python and testable from a terminal, and adding a target to
+<code>targets.toml</code> needs no plugin change.</p>
+<ul>
+  <li><strong>Absolute shim path, always.</strong> Stream Deck launches commands with a
+  minimal <code>PATH</code> (no Homebrew), so the plugin invokes
+  <code>${HOME}/.local/bin/deck</code> by absolute path &mdash; the same reason
+  <code>deck</code> calls <code>aerospace</code>/<code>osascript</code>/Chrome by absolute
+  path internally.</li>
+  <li><strong>Tap vs. long-press.</strong> Stream Deck fires <code>keyDown</code>/
+  <code>keyUp</code> but doesn&rsquo;t classify a hold. The action arms a 500&nbsp;ms timer
+  on <code>keyDown</code>; if it fires while still held it runs <code>deck close</code> and
+  marks the press handled, so <code>keyUp</code> doesn&rsquo;t also open. A normal release
+  before 500&nbsp;ms cancels the timer and runs <code>deck open</code>. Close acts on the
+  <em>threshold</em> while held, so there&rsquo;s no guessing on release.</li>
+  <li><strong>Icons are produced at runtime, not bundled.</strong>
+  <code>deck&nbsp;icon</code> emits a <code>data:image/png;base64</code> URL that feeds
+  straight into <code>setImage</code>. Web targets use the <strong>DuckDuckGo</strong> icon
+  service (<code>icons.duckduckgo.com/ip3/&lt;host&gt;.ico</code>) &mdash; it returns a real
+  <code>200&nbsp;image/png</code> with no redirect (Google&rsquo;s needs a 301 follow), so a
+  single stdlib <code>urllib</code> GET suffices. App targets render the macOS app icon via
+  <code>NSWorkspace.iconForFile_</code> into an explicit <em>N&times;N</em>
+  <code>NSBitmapImageRep</code> &mdash; which captures asset-catalog icons that ship no
+  <code>.icns</code>. Both are cached under <code>~/.cache/deck/icons/</code>.</li>
+  <li><strong><code>deck close</code> mirrors <code>open</code>.</strong> App &rarr; quit the
+  whole app (a quit Apple Event); Safari &rarr; close the matched tab via AppleScript;
+  Chrome &rarr; close the matched tab on the same PID-addressed ScriptingBridge window object
+  that <code>find()</code> resolved. Idempotent: closing what isn&rsquo;t open is a no-op
+  success.</li>
+  <li><strong>Placement waits out slow launches.</strong> After
+  <code>create()</code>, <code>deck</code> polls <code>aerospace list-windows</code> for the
+  new window, then moves it to the target workspace. The poll returns the instant the window
+  appears, so the ceiling is generous &mdash; <strong>15&nbsp;s for apps</strong>, 8&nbsp;s for
+  browsers. An earlier 2&nbsp;s cap lost the race against Outlook&rsquo;s cold start: the
+  window surfaced <em>after</em> deck gave up and landed on the current workspace instead of
+  its configured one. The durable fix is to also pin app targets with an
+  <code>on-window-detected</code> rule (see <code>aerospace-snippet.toml</code>) so AeroSpace
+  places them regardless of launch speed; deck&rsquo;s move then just adds the
+  &ldquo;jump to it&rdquo; focus.</li>
+</ul>
+<div class="callout note"><span class="tag">Permissions</span>
+Pressing a Chrome/Safari (or app-<code>close</code>) target from a button sends an Apple
+Event attributed to <strong>Stream Deck.app</strong>, which hosts the plugin &mdash; so it&rsquo;s
+a one-time Automation grant per controlled app, not per target. Developer mode must be
+enabled (<code>streamdeck dev</code>) before the CLI can link/restart the plugin; without it
+the restart deep-link is silently rejected.</div>
 </section>
 
 </main>

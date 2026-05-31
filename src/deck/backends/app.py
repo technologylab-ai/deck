@@ -106,11 +106,43 @@ class AppBackend:
                 return None
             time.sleep(0.1)
 
+    def close(self, handle: Handle) -> None:
+        # Quit the whole app (all its windows) — the natural inverse of "open"
+        # for a native target, and what frees up its AeroSpace workspace.
+        _quit_bundle(handle.ref.get("bundle"))
+
     def describe_create(self, target: Target) -> list[str]:
         return [f"open -b {target.bundle}"]
 
     def describe_focus(self, handle: Handle) -> list[str]:
         return [f"open -b {handle.ref.get('bundle')}  (activate running app)"]
+
+    def describe_close(self, handle: Handle) -> list[str]:
+        return [
+            f'osascript: tell application id "{handle.ref.get("bundle")}" to quit'
+        ]
+
+
+def _quit_bundle(bundle: str) -> None:
+    if not bundle:
+        raise BackendError("app target has no bundle id")
+    _log.debug("quit app id %s", bundle)
+    # A quit Apple Event needs Automation permission for the app running deck →
+    # the target app (first time shows a one-time prompt, same as the browsers).
+    try:
+        proc = subprocess.run(
+            ["/usr/bin/osascript", "-e", f'tell application id "{bundle}" to quit'],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise BackendError(f"quit failed: {exc}") from exc
+    if proc.returncode != 0:
+        raise BackendError(
+            f"quit {bundle} failed: {proc.stderr.strip() or proc.returncode}"
+        )
 
 
 def _open_bundle(bundle: str) -> None:
