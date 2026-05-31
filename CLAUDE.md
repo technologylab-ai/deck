@@ -76,11 +76,23 @@ create(target) -> handle
 place(handle, workspace)
 ```
 
+Backends also implement `close(handle)` (quit app / close tab) and `describe_*` (dry-run).
+
+**Browser create() consolidates into tabs.** When a browser target must be created, the backend
+adds it as a new **tab** in a browser window already on the target workspace, opening a separate
+window only when that workspace has no browser yet (one window-per-workspace with N tabs, not N
+windows). `create()` signals this by returning a Handle with `window_id` already set (the consolidated
+window) so `cli._live_open` skips the place step and just switches there; a `window_id=None` handle
+means a new window was opened and still needs find+place. Safari's AeroSpace window-id **equals** its
+AppleScript window id, so deck addresses `window id <id>` directly; Chrome's SB window id differs, so
+it bridges by title (`<page> - Google Chrome - <profile>` startswith the SB bare title).
+
 Three backends:
 - **`app`** — native macOS app via `open -b <bundle-id>`; dedup = is the app running. These can
   *also* be pinned via AeroSpace `on-window-detected` rules.
 - **`safari`** — open/focus a URL via AppleScript (`osascript`); enumerate windows+tabs, match
-  the URL, `set current tab` + `activate`, else `make new tab`. Path for all Synadia targets.
+  the URL, `set current tab` + `activate`, else add a `make new tab` to the workspace's Safari
+  window (or a new document if none). Path for all Synadia targets.
 - **`chrome`** — dedup via **ScriptingBridge addressed to a specific Chrome PID**, not plain
   AppleScript. The user runs extra Chrome instances (`--app=<url> --user-data-dir=…` for OBS capture
   / slides / a demo); they all share bundle id `com.google.Chrome`, so `tell application "Google

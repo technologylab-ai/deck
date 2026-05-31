@@ -156,12 +156,23 @@ class ChromeBackend:
                 aerospace.switch_to(focused["workspace"])
 
     def create(self, target: Target) -> Handle:
-        # Open a new window in the DEFAULT Chrome profile via the binary. We do
-        # NOT use AppleScript `make new window`: with extra Chrome instances
-        # running under their own --user-data-dir, Apple Events route to an
-        # arbitrary instance and can spawn the window in a throwaway, logged-out
-        # profile. Launching the binary with --new-window and no --user-data-dir
-        # always hands off to the running default-profile instance.
+        # Prefer consolidation: if a Chrome window already lives on the target
+        # workspace, add the URL as a new TAB there instead of opening a separate
+        # window. Keeps one browser-per-workspace with N tabs rather than N
+        # windows. Falls back to a new window when that workspace has no Chrome.
+        target_ws = aerospace.resolve_workspace(target.workspace)
+        if target_ws is not None:
+            tabbed = self._add_tab_on_workspace(target, target_ws)
+            if tabbed is not None:
+                return tabbed
+
+        # No Chrome window on the target workspace → open a new window in the
+        # DEFAULT Chrome profile via the binary. We do NOT use AppleScript `make
+        # new window`: with extra Chrome instances running under their own
+        # --user-data-dir, Apple Events route to an arbitrary instance and can
+        # spawn the window in a throwaway, logged-out profile. Launching the
+        # binary with --new-window and no --user-data-dir always hands off to the
+        # running default-profile instance.
         subprocess.run(
             [CHROME_BIN, "--new-window", target.url],
             capture_output=True,
@@ -173,6 +184,54 @@ class ChromeBackend:
             found=False,
             detail=f"new Chrome window -> {target.url}",
         )
+
+    def _add_tab_on_workspace(self, target: Target, target_ws: str) -> Handle | None:
+        """Add the URL as a new tab in a Chrome window on `target_ws`.
+
+        Returns a Handle (window_id set to that window) on success, or None if
+        there is no Chrome window on that workspace / we can't reach Chrome.
+        """
+        aero = aerospace.windows_on_workspace(APP_NAME, target_ws)
+        if not aero:
+            return None
+        pid = _default_profile_pid()
+        if pid is None:
+            return None
+        app = _chrome_app(pid)
+        if app is None:
+            return None
+        windows = app.windows()
+        if windows is None:
+            return None
+
+        # Chrome's SB window id != AeroSpace window-id, so bridge by title:
+        # AeroSpace shows "<page> - Google Chrome - <profile>", ScriptingBridge
+        # shows the bare "<page>". Match an SB window to an AeroSpace window that
+        # is on the target workspace, then we know that window's AeroSpace id.
+        for sb in windows:
+            title = sb.title() or ""
+            if not title:
+                continue
+            wid = next(
+                (w["window_id"] for w in aero if w["title"].startswith(title)),
+                None,
+            )
+            if wid is None:
+                continue
+            tab = app.classForScriptingClass_("tab").alloc().initWithProperties_(
+                {"URL": target.url}
+            )
+            sb.tabs().addObject_(tab)
+            sb.setActiveTabIndex_(len(sb.tabs()))  # select the new (last) tab
+            sb.setIndex_(1)  # raise the window within Chrome
+            app.activate()
+            return Handle(
+                app=APP_NAME,
+                found=False,
+                window_id=wid,
+                detail=f"new tab in Chrome window on workspace {target_ws}",
+            )
+        return None
 
     def close(self, handle: Handle) -> None:
         # Close just the matched tab via the same PID-addressed SB window object
@@ -190,12 +249,22 @@ class ChromeBackend:
         return aerospace.find_new_window(before_ids, APP_NAME, timeout=timeout)
 
     def describe_create(self, target: Target) -> list[str]:
+        target_ws = aerospace.resolve_workspace(target.workspace)
+        aero = (
+            aerospace.windows_on_workspace(APP_NAME, target_ws) if target_ws else []
+        )
+        if aero:
+            return [
+                f"add a new tab -> {target.url} to the Chrome window on workspace "
+                f"{target_ws} (window {aero[0]['window_id']})",
+            ]
         note = ""
         if target.mode == "app":
             note = "  (mode='app' requested; Phase 1 opens a normal window anyway)"
         return [
             f"{CHROME_BIN} --new-window {target.url}{note}",
-            "(default profile; avoids AppleScript routing to a stray instance)",
+            f"(no Chrome window on workspace {target_ws}; opens a new one in the "
+            f"default profile)",
         ]
 
     def describe_focus(self, handle: Handle) -> list[str]:

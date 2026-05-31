@@ -448,6 +448,15 @@ the real behavior stays in Python and testable from a terminal, and adding a tar
   <code>on-window-detected</code> rule (see <code>aerospace-snippet.toml</code>) so AeroSpace
   places them regardless of launch speed; deck&rsquo;s move then just adds the
   &ldquo;jump to it&rdquo; focus.</li>
+  <li><strong>Browser create() consolidates into tabs.</strong> Creating a browser target adds it
+  as a new <em>tab</em> in the browser window already on the target workspace, opening a separate
+  window only when that workspace has none — one window-per-workspace with N tabs, not N windows.
+  A handy primitive fell out of this: <strong>Safari&rsquo;s AeroSpace window-id equals its
+  AppleScript <code>id of window</code></strong> (and its title is the bare page title), so deck
+  addresses <code>tell window id &lt;id&gt;</code> directly — no title bridge. Chrome&rsquo;s
+  ScriptingBridge window id does <em>not</em> match the AeroSpace/CGWindowID, so Chrome still bridges
+  by title. <code>create()</code> returns a Handle with <code>window_id</code> pre-set when it
+  consolidated, telling the orchestrator &ldquo;already placed — just switch here.&rdquo;</li>
 </ul>
 <div class="callout note"><span class="tag">Permissions</span>
 Pressing a Chrome/Safari (or app-<code>close</code>) target from a button sends an Apple

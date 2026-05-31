@@ -294,6 +294,18 @@ If you keep several tabs of the same site open (say a few Gemini conversations o
 different workspaces), a global match would always pull you to one of those when
 you just wanted a fresh one here. Workspace-local <code>current</code> gives you
 &ldquo;Gemini, right here&rdquo; every time.</div>
+
+<h3>Browser targets open as tabs (one window per workspace)</h3>
+<p>When deck has to <em>create</em> a browser target (it isn&rsquo;t already open), it
+adds it as a <strong>new tab in the browser window already on that workspace</strong>
+— and only opens a separate window if that workspace has no browser yet. So if you
+park five Chrome or Safari targets on one workspace, you get <strong>one window with
+five tabs</strong> instead of five windows.</p>
+<div class="callout note"><span class="tag">Tab vs. window</span>
+The first browser target you open on an empty workspace creates the window; every
+one after that lands as a tab in it. Mixed Chrome + Safari on the same workspace
+stay separate (one Chrome window, one Safari window) — consolidation is per
+browser.</div>
 </section>
 
 <section id="permissions">

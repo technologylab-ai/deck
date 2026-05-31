@@ -169,3 +169,23 @@ def current_workspace() -> str | None:
     if proc.returncode != 0:
         return None
     return proc.stdout.strip() or None
+
+
+def resolve_workspace(name: str | None) -> str | None:
+    """Resolve a configured workspace value to a real workspace name.
+
+    The sentinel "current" (config.CURRENT_WORKSPACE) resolves to the focused
+    workspace; any other value is returned unchanged.
+    """
+    if name and name.strip().lower() == "current":
+        return current_workspace()
+    return name
+
+
+def windows_on_workspace(app_name: str, workspace: str) -> list[dict]:
+    """Return the windows of `app_name` currently on `workspace`."""
+    return [
+        w
+        for w in list_windows()
+        if w["app"].lower() == app_name.lower() and w["workspace"] == workspace
+    ]

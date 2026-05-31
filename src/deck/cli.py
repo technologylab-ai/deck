@@ -145,21 +145,33 @@ def _live_open(target, backend) -> int:
         console.print(f"focused {target.name} on workspace {ws or '?'}")
         return 0
 
-    # Not open yet: create it.
+    # Not open yet: create it. A browser backend may CONSOLIDATE — add the URL
+    # as a new tab to a browser window already on the target workspace — in which
+    # case create() returns a handle with that window's id already set (nothing to
+    # place). Otherwise it opened a new window we must find and place.
+    before = aerospace.window_ids()
+    handle = backend.create(target)
+
+    if handle.window_id is not None:
+        # Consolidated into an existing browser window already on the right
+        # workspace; the new tab is there. Just switch to it.
+        ws = aerospace.workspace_of(handle.window_id)
+        if ws is not None:
+            aerospace.switch_to(ws)
+        console.print(f"opened {target.name} as a tab on workspace {ws or '?'}")
+        return 0
+
     if _is_current(target):
-        # workspace = "current": open it here and leave it. AeroSpace puts a new
-        # window on the focused workspace, so there's nothing to move.
-        backend.create(target)
+        # New window for a "current" target: AeroSpace puts it on the focused
+        # workspace, so there's nothing to move.
         console.print(f"opened {target.name} on the current workspace")
         return 0
 
-    # Otherwise: resolve the new window, then place + switch to its workspace.
-    before = aerospace.window_ids()
-    handle = backend.create(target)
+    # New window for a fixed-workspace target: find it, then place + switch.
     # Native apps can cold-start slowly (Outlook/Teams take several seconds to
-    # draw their first window); browsers usually attach to an already-running
-    # instance. new_window_id() returns the instant the window appears, so a
-    # generous ceiling only costs wall-clock on an actual failure.
+    # draw their first window); browsers usually attach to a running instance.
+    # new_window_id() returns the instant the window appears, so a generous
+    # ceiling only costs wall-clock on an actual failure.
     launch_timeout = 15.0 if target.kind == "app" else 8.0
     new_id = backend.new_window_id(target, before, timeout=launch_timeout)
     if new_id is None:
@@ -202,7 +214,11 @@ def _dry_run_open(target, backend) -> int:
             console.print("  would: switch to the focused window's workspace")
     else:
         console.print("  match: no existing window")
-        for line in backend.describe_create(target):
+        try:
+            create_lines = backend.describe_create(target)
+        except Exception as exc:
+            create_lines = [f"(could not inspect: {exc})"]
+        for line in create_lines:
             console.print(f"  would create: {line}")
         if _is_current(target):
             console.print("  would: open on the current workspace (no move)")

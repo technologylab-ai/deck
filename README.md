@@ -118,6 +118,15 @@ What "already open" means depends on the target type:
   This is what you want for a browser app you keep several tabs of (e.g. Gemini
   conversations scattered across workspaces).
 
+### Browser targets open as tabs, consolidated per workspace
+
+When a browser target isn't already open and needs to be created, deck adds it as
+a **new tab in the browser window already on the target workspace** — opening a
+separate window only when that workspace has no browser yet. So opening five
+Chrome/Safari targets that share a workspace gives you **one window with five
+tabs**, not five windows. (Safari's AeroSpace window-id is its AppleScript window
+id, so deck targets it directly; Chrome is matched by window title.)
+
 See `targets.toml.example` for the full set.
 
 ## AeroSpace placement
