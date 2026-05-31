@@ -171,8 +171,21 @@ streamdeck link ai.technologylab.deck.sdPlugin  # register the plugin
 The built `*.sdPlugin/` is committed, so it installs without a build if you
 prefer. Then in the Stream Deck app: drag **Open Target** onto a key, pick a
 target from the dropdown — the icon appears. Tap to open, long-press to close.
-For a distributable file, `streamdeck pack ai.technologylab.deck.sdPlugin`
-produces an `.streamDeckPlugin`.
+
+### Distributable `.streamDeckPlugin`
+
+To produce a double-click installer (no developer mode needed on the target
+machine), run the pack script — it builds and packs in one step:
+
+```sh
+streamdeck-plugin/scripts/pack.sh            # → streamdeck-plugin/dist/…streamDeckPlugin
+streamdeck-plugin/scripts/pack.sh 1.2.0.0    # optionally stamp a version
+```
+
+It needs `node` and the Elgato CLI (`npm i -g @elgato/cli`). The output under
+`streamdeck-plugin/dist/` is git-ignored — regenerate it any time. Install it by
+double-clicking the `.streamDeckPlugin` file (or `open` it). Under the hood it
+just runs `npm run build` then `streamdeck pack ai.technologylab.deck.sdPlugin`.
 
 ### Permissions
 

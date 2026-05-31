@@ -30,7 +30,9 @@
 			"UUID": "ai.technologylab.deck.open",
 			"Icon": "imgs/actions/open/icon",
 			"Tooltip": "Open or focus a deck target on its AeroSpace workspace.",
-			"Controllers": ["Keypad"],
+			"Controllers": [
+				"Keypad"
+			],
 			"PropertyInspectorPath": "ui/open-target.html",
 			"States": [
 				{

@@ -14,4 +14,5 @@ targets.toml
 # Stream Deck plugin: commit source + the built *.sdPlugin/, ignore the rest.
 streamdeck-plugin/node_modules/
 streamdeck-plugin/*.streamDeckPlugin
+streamdeck-plugin/dist/
 streamdeck-plugin/ai.technologylab.deck.sdPlugin/logs/
