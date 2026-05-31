@@ -29,8 +29,10 @@ const LONG_PRESS_MS = 500;
 type OpenSettings = {
 	/** Target name from `deck list` (chosen in the Property Inspector dropdown). */
 	target?: string;
-	/** Optional title override; empty/undefined falls back to the target name. */
+	/** Button title. Seeded with the target name; clear it for a blank title. */
 	title?: string;
+	/** The target the title was last auto-seeded for (so we don't clobber edits). */
+	titleSeededFor?: string;
 };
 
 /**
@@ -163,7 +165,18 @@ export class OpenTarget extends SingletonAction<OpenSettings> {
 			}
 		}
 
-		// User can override or clear the title in the PI; default to the target name.
-		await action.setTitle(settings.title?.trim() || target);
+		// Seed the title field with the target name the first time a target is
+		// chosen (or when the target changes and the title wasn't customized), so
+		// the name shows by default AND lives in the PI field where it can be
+		// edited — or cleared for a genuinely blank title. Keyed on
+		// `titleSeededFor` rather than title-presence, so clearing the field
+		// (empty string OR a deleted key) is respected instead of snapping back.
+		const seededFor = settings.titleSeededFor;
+		if (seededFor !== target && (settings.title === undefined || settings.title === seededFor)) {
+			await action.setSettings({ ...settings, title: target, titleSeededFor: target });
+			await action.setTitle(target);
+			return;
+		}
+		await action.setTitle(settings.title ?? "");
 	}
 }

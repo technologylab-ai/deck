@@ -8518,8 +8518,19 @@ let OpenTarget = (() => {
                     streamDeck.logger.warn(`deck icon ${target} failed`, err);
                 }
             }
-            // User can override or clear the title in the PI; default to the target name.
-            await action.setTitle(settings.title?.trim() || target);
+            // Seed the title field with the target name the first time a target is
+            // chosen (or when the target changes and the title wasn't customized), so
+            // the name shows by default AND lives in the PI field where it can be
+            // edited — or cleared for a genuinely blank title. Keyed on
+            // `titleSeededFor` rather than title-presence, so clearing the field
+            // (empty string OR a deleted key) is respected instead of snapping back.
+            const seededFor = settings.titleSeededFor;
+            if (seededFor !== target && (settings.title === undefined || settings.title === seededFor)) {
+                await action.setSettings({ ...settings, title: target, titleSeededFor: target });
+                await action.setTitle(target);
+                return;
+            }
+            await action.setTitle(settings.title ?? "");
         }
     });
     return _classThis;
