@@ -4,9 +4,11 @@
 #   type = "app"                 -> native macOS app (needs `bundle`)
 #   browser = "safari" | "chrome" -> web target (needs `url`)
 #
-# `workspace` is an AeroSpace workspace name (numeric here). `match` is the
-# substring used to dedup an already-open tab; it defaults to `url`.
-# Adding a target requires editing THIS FILE ONLY — no code, no Stream Deck.
+# `workspace` is an AeroSpace workspace name (numeric here), or the special value
+# "current" to open the target on whatever workspace is focused and leave it
+# there (no move). `match` is the substring used to dedup an already-open tab; it
+# defaults to `url`. Adding a target requires editing THIS FILE ONLY — no code,
+# no Stream Deck.
 
 [hey]
 browser = "chrome"
@@ -31,3 +33,8 @@ match = "calendar.google.com"
 type = "app"
 bundle = "com.microsoft.Outlook"
 workspace = "1"
+
+[chatgpt]
+type = "app"
+bundle = "com.openai.chat"
+workspace = "current"   # open on whatever workspace I'm on; don't move it

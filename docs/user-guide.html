@@ -269,6 +269,18 @@ Bundle ids often aren&rsquo;t what you&rsquo;d guess: <code>deck bundle teams</c
 <code>com.microsoft.teams2</code>, <code>deck bundle telegram</code> &rarr;
 <code>ru.keepcoder.Telegram</code>. A fuzzy query lists every matching app with its
 id and path, so you can copy the right one.</div>
+
+<h3>Open on the current workspace</h3>
+<p>Instead of a fixed workspace number, set <code>workspace = "current"</code> to
+open a target wherever you happen to be — and leave it there. Good for a
+&ldquo;summon it near me&rdquo; app like ChatGPT:</p>
+<pre><code>[chatgpt]
+type = "app"
+bundle = "com.openai.chat"
+workspace = "current"</code></pre>
+<p>A press opens it on your focused workspace with no move. If it&rsquo;s
+<em>already</em> open on another workspace, the press just jumps to it there (deck&rsquo;s
+normal focus behavior) rather than dragging it around.</p>
 </section>
 
 <section id="permissions">

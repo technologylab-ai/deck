@@ -19,6 +19,10 @@ from pathlib import Path
 _VALID_BROWSERS = ("safari", "chrome")
 _VALID_MODES = ("tab", "app")
 
+# Sentinel workspace value: open the target on whatever workspace is focused and
+# leave it there (no move), rather than pinning it to a fixed workspace name.
+CURRENT_WORKSPACE = "current"
+
 
 class ConfigError(Exception):
     """Raised when the config file is missing or not parseable."""

@@ -127,7 +127,15 @@ def _live_open(target, backend) -> int:
         console.print(f"focused {target.name} on workspace {ws or '?'}")
         return 0
 
-    # Not open yet: create, resolve the new window, place + switch.
+    # Not open yet: create it.
+    if _is_current(target):
+        # workspace = "current": open it here and leave it. AeroSpace puts a new
+        # window on the focused workspace, so there's nothing to move.
+        backend.create(target)
+        console.print(f"opened {target.name} on the current workspace")
+        return 0
+
+    # Otherwise: resolve the new window, then place + switch to its workspace.
     before = aerospace.window_ids()
     handle = backend.create(target)
     # Native apps can cold-start slowly (Outlook/Teams take several seconds to
@@ -178,12 +186,20 @@ def _dry_run_open(target, backend) -> int:
         console.print("  match: no existing window")
         for line in backend.describe_create(target):
             console.print(f"  would create: {line}")
-        console.print(
-            f"  would place: aerospace move-node-to-workspace --window-id <new> "
-            f"{target.workspace} --focus-follows-window"
-        )
-        console.print(f"  would: aerospace workspace {target.workspace}")
+        if _is_current(target):
+            console.print("  would: open on the current workspace (no move)")
+        else:
+            console.print(
+                f"  would place: aerospace move-node-to-workspace --window-id <new> "
+                f"{target.workspace} --focus-follows-window"
+            )
+            console.print(f"  would: aerospace workspace {target.workspace}")
     return 0
+
+
+def _is_current(target) -> bool:
+    """True for a target that should open on whatever workspace is focused."""
+    return (target.workspace or "").strip().lower() == config.CURRENT_WORKSPACE
 
 
 # --------------------------------------------------------------------------- #

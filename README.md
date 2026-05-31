@@ -98,7 +98,18 @@ match = "mail.google.com"     # dedup substring; defaults to url
 type = "app"                  # native macOS app
 bundle = "com.microsoft.Outlook"
 workspace = "1"
+
+[chatgpt]
+type = "app"
+bundle = "com.openai.chat"
+workspace = "current"         # open on the focused workspace; don't move it
 ```
+
+`workspace` is an AeroSpace workspace name, or the special value `"current"` to
+open the target on whatever workspace is focused and leave it there. With
+`"current"`, a fresh window opens where you are; if the target is *already* open
+elsewhere, a press just jumps to it (deck's normal focus). Handy for a "summon it
+near me" app like ChatGPT.
 
 See `targets.toml.example` for the full set.
 

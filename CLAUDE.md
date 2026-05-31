@@ -112,6 +112,12 @@ TOML at `~/.config/deck/targets.toml`, loaded with `tomllib`. One table per targ
 implies a web target; `type = "app"` is a native app. Adding a target must require editing TOML
 **only** — no code and no Stream Deck changes.
 
+`workspace` is an AeroSpace workspace name, or the sentinel `"current"`
+(`config.CURRENT_WORKSPACE`): open the target on the focused workspace and skip the move (a new
+window already lands there). An already-open `"current"` target still focuses where it lives —
+deck never drags an existing window around. The `_is_current()` branch in `cli._live_open` is the
+only divergence from the normal create→place→switch path.
+
 ## CLI surface
 
 - `deck open <target>` — main verb Stream Deck calls.
