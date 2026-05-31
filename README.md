@@ -110,4 +110,13 @@ src/deck/             # package (also runnable via `python -m deck`)
   backends/           # app / safari / chrome behind one find/focus/create/place
 targets.toml.example
 aerospace-snippet.toml
+docs/design-decisions.html  # why the Chrome backend works the way it does
 ```
+
+## Design notes
+
+`docs/design-decisions.html` is a self-contained write-up of the reasoning,
+dead ends, and live evidence behind the Chrome backend — the multi-instance
+Apple-Events trap and why dedup goes through ScriptingBridge addressed to a
+specific Chrome PID. Read it before changing browser logic; it captures what the
+code alone can't.

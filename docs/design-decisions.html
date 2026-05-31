@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deck — Design Decisions &amp; Learnings</title>
+<style>
+  :root{
+    --ink:#1c1e21; --muted:#5b6470; --line:#e4e7eb; --bg:#fbfbfa;
+    --card:#ffffff; --accent:#2d6cdf; --good:#1a7f37; --bad:#cf222e;
+    --warn:#9a6700; --code-bg:#f4f5f7; --shadow:0 1px 2px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 24px 96px}
+  header.hero{
+    max-width:860px; margin:0 auto; padding:56px 24px 28px;
+  }
+  .eyebrow{font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 8px}
+  h1{font-size:34px; line-height:1.15; margin:0 0 10px; letter-spacing:-.02em}
+  .lede{font-size:18px; color:var(--muted); margin:0; max-width:62ch}
+  .meta{margin-top:18px; font-size:13.5px; color:var(--muted)}
+  .meta code{background:var(--code-bg); padding:1px 6px; border-radius:5px}
+  h2{font-size:23px; margin:48px 0 14px; padding-top:8px; letter-spacing:-.01em; border-top:1px solid var(--line)}
+  h2 .num{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:10px; font-weight:700}
+  h3{font-size:17px; margin:28px 0 8px}
+  p{margin:12px 0}
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; background:var(--code-bg); padding:1px 5px; border-radius:5px}
+  pre{background:#0f1729; color:#e7ecf3; border-radius:10px; padding:16px 18px; overflow:auto; font-size:13px; line-height:1.55; box-shadow:var(--shadow)}
+  pre code{background:none; padding:0; color:inherit; font-size:inherit}
+  .toc{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 22px; box-shadow:var(--shadow); margin-top:24px}
+  .toc h4{margin:0 0 10px; font-size:12.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+  .toc ol{margin:0; padding-left:20px; columns:2; column-gap:32px}
+  .toc li{margin:4px 0; break-inside:avoid}
+  .callout{border-radius:10px; padding:14px 18px; margin:18px 0; border:1px solid var(--line); background:var(--card); box-shadow:var(--shadow)}
+  .callout .tag{font-weight:700; font-size:12.5px; letter-spacing:.04em; text-transform:uppercase; display:block; margin-bottom:4px}
+  .callout.key{border-left:4px solid var(--accent)} .callout.key .tag{color:var(--accent)}
+  .callout.aha{border-left:4px solid var(--good)} .callout.aha .tag{color:var(--good)}
+  .callout.trap{border-left:4px solid var(--bad)} .callout.trap .tag{color:var(--bad)}
+  .callout.note{border-left:4px solid var(--warn)} .callout.note .tag{color:var(--warn)}
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-size:14.5px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow)}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{background:#f3f5f8; font-size:12.5px; letter-spacing:.03em; text-transform:uppercase; color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  .verdict{font-weight:700; white-space:nowrap}
+  .verdict.no{color:var(--bad)} .verdict.yes{color:var(--good)}
+  .pill{display:inline-block; font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:999px; vertical-align:middle}
+  .pill.no{background:#ffe9e9; color:var(--bad)} .pill.yes{background:#e6f4ea; color:var(--good)}
+  .timeline{list-style:none; margin:18px 0; padding:0}
+  .timeline>li{position:relative; padding:2px 0 22px 28px; border-left:2px solid var(--line); margin-left:6px}
+  .timeline>li:last-child{border-left-color:transparent}
+  .timeline>li::before{content:""; position:absolute; left:-7px; top:6px; width:12px; height:12px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--bg)}
+  .timeline .step-t{font-weight:700}
+  .ev{font-size:13.5px; color:var(--muted)}
+  .ev b{color:var(--ink)}
+  .flow{counter-reset:s; margin:16px 0; padding:0; list-style:none}
+  .flow li{position:relative; padding:10px 14px 10px 46px; border:1px solid var(--line); border-radius:10px; background:var(--card); margin:8px 0; box-shadow:var(--shadow)}
+  .flow li::before{counter-increment:s; content:counter(s); position:absolute; left:12px; top:50%; transform:translateY(-50%); width:24px; height:24px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center}
+  footer{max-width:860px; margin:0 auto; padding:28px 24px; color:var(--muted); font-size:13px; border-top:1px solid var(--line)}
+  .kbd{font-family:ui-monospace,monospace; font-size:.85em; background:#fff; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; padding:1px 6px}
+  @media (max-width:640px){ .toc ol{columns:1} h1{font-size:27px} }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">deck · design record</p>
+  <h1>Why <code>deck</code> opens Chrome tabs the way it does</h1>
+  <p class="lede">The reasoning, dead ends, and live evidence behind the Chrome
+  backend — the parts that the source code can&rsquo;t tell you on its own.</p>
+  <p class="meta">Scope: macOS · AeroSpace · Chrome 148 · Stream Deck &nbsp;|&nbsp;
+  Audience: future maintainers (human or AI) &nbsp;|&nbsp;
+  Companion to <code>CLAUDE.md</code> and <code>src/deck/backends/chrome.py</code>.</p>
+
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#what">What deck is</a></li>
+      <li><a href="#incident">The incident</a></li>
+      <li><a href="#rootcause">Root cause</a></li>
+      <li><a href="#twoproblems">Two separate problems</a></li>
+      <li><a href="#matrix">Approaches &amp; verdicts</a></li>
+      <li><a href="#journey">The journey, step by step</a></li>
+      <li><a href="#final">How it works now</a></li>
+      <li><a href="#primitives">Primitives we learned</a></li>
+      <li><a href="#permissions">Permissions model</a></li>
+      <li><a href="#limits">Limits &amp; future</a></li>
+    </ol>
+  </nav>
+</header>
+
+<main class="wrap">
+
+<section id="what">
+<h2><span class="num">1</span>What <code>deck</code> is</h2>
+<p><code>deck</code> is a small macOS CLI driven one target at a time by Elgato
+Stream Deck buttons (<code>deck open &lt;target&gt;</code>). It opens an app or a
+browser tab on a specific <a href="https://nikitabobko.github.io/AeroSpace/">AeroSpace</a>
+workspace <strong>idempotently</strong>: if the thing is already open, focus it
+and switch to its workspace; otherwise open it, place it, and switch. Presses
+must feel instant.</p>
+<p>Targets are config-only (<code>~/.config/deck/targets.toml</code>); a target&rsquo;s
+<code>type</code>/<code>browser</code> selects one of three backends behind a
+single interface — <code>app</code> (native, via <code>open -b</code>),
+<code>safari</code> (AppleScript), and <code>chrome</code>. This document is about
+<strong>chrome</strong>, which was by far the hardest to get right.</p>
+<div class="callout key"><span class="tag">The original assumption</span>
+Synadia Google apps live in <strong>Safari</strong>; personal apps (HEY) live in
+<strong>Chrome</strong>. Because they&rsquo;re in physically different browsers,
+dedup never needs to be profile-aware — the browser boundary <em>is</em> the
+isolation. That held. What broke was the unstated assumption that there is
+<em>one</em> Chrome.</div>
+</section>
+
+<section id="incident">
+<h2><span class="num">2</span>The incident</h2>
+<p>Phase 1 worked in testing. Then a real press of <code>deck open hey</code>
+did the worst possible thing: instead of focusing the existing, logged-in HEY,
+it opened a <strong>brand-new, logged-out HEY</strong> in a throwaway Chrome
+profile — complete with Chrome&rsquo;s first-run &ldquo;Choose your search
+engine&rdquo; screen. The user, reasonably, was furious: &ldquo;even if there was
+no tab, it should not create a new profile!&rdquo;</p>
+<p>Two things were broken at once, and untangling them drove the whole design:</p>
+<ul>
+  <li><strong>Detection failed</strong> — it didn&rsquo;t find the open HEY tab.</li>
+  <li><strong>Creation went to the wrong place</strong> — the fallback spawned a
+  window in a junk profile, not the real one.</li>
+</ul>
+</section>
+
+<section id="rootcause">
+<h2><span class="num">3</span>Root cause: there were three Chromes</h2>
+<p>The user runs extra Chrome instances on purpose — for OBS window-capture,
+slide switching, and a browser-based demo (launched via earlier guidance, and a
+permanent part of the setup). At the moment of the bug, <code>ps</code> showed
+<strong>three</strong> main <code>Google Chrome</code> processes:</p>
+<pre><code>4056   Google Chrome                                  # default profile — the real browser, logged-in HEY
+31102  Google Chrome --app=…/presentation.html  --user-data-dir=~/.obs-chrome-slides
+34814  Google Chrome --app=http://localhost:14801 --user-data-dir=~/.obs-chrome-ui</code></pre>
+<p>All three share bundle id <code>com.google.Chrome</code>. And here is the load-bearing
+fact of this entire document:</p>
+<div class="callout trap"><span class="tag">The trap</span>
+When several processes share one bundle id, an Apple Event sent with
+<code>tell application "Google&nbsp;Chrome"</code> is delivered to <em>one</em>
+instance chosen by macOS — and <strong>you cannot choose which</strong> from the
+high-level <code>application&nbsp;"name"</code> specifier. On this machine it
+deterministically landed on an <code>--app</code> instance that has no scriptable
+browser windows.</div>
+<p>The evidence was unambiguous:</p>
+<pre><code>$ osascript -e 'tell application "Google Chrome" to count windows'
+0          # …returned 0 five times in a row, while the real browser had 12 windows
+
+$ osascript -e 'tell application "Google Chrome" to get URL of active tab of front window'
+execution error: Can’t get window 1. Invalid index. (-1719)</code></pre>
+<p>So <code>find()</code> saw zero tabs &rarr; reported &ldquo;not open&rdquo;
+&rarr; <code>create()</code> ran AppleScript <code>make new window</code>
+<em>inside that same wrong instance</em>, whose <code>--user-data-dir</code> is a
+throwaway profile &rarr; logged-out window with the first-run screen. Every
+symptom explained by one cause. (&ldquo;New Chrome available,&rdquo; the
+user&rsquo;s first guess, was a red herring.)</p>
+</section>
+
+<section id="twoproblems">
+<h2><span class="num">4</span>Two problems that need different tools</h2>
+<p>Separating these was the key to not chasing one solution for both:</p>
+<table>
+  <tr><th>Problem</th><th>What it needs</th><th>Hard part</th></tr>
+  <tr>
+    <td><strong>Detect</strong> — is a tab for this URL open?</td>
+    <td>Read tab URLs in the <em>default-profile</em> Chrome.</td>
+    <td>Reaching the right instance; seeing <em>background</em> tabs, not just the active one.</td>
+  </tr>
+  <tr>
+    <td><strong>Focus</strong> — bring that exact tab + its workspace forward.</td>
+    <td>Select a specific tab, then switch AeroSpace.</td>
+    <td>Selecting a tab needs to <em>act on</em> Chrome, not just read it.</td>
+  </tr>
+</table>
+<p>A method can solve one and not the other. The on-disk session file, for
+instance, can <em>detect</em> any open URL but can never <em>focus</em> a tab.
+That realization is why the final design uses one mechanism that does both.</p>
+</section>
+
+<section id="matrix">
+<h2><span class="num">5</span>Every approach we weighed — and the verdict</h2>
+<table>
+  <tr><th>Approach</th><th>Sees real profile?</th><th>Background tabs?</th><th>Can focus?</th><th>Verdict &amp; why</th></tr>
+  <tr>
+    <td><strong>Plain AppleScript</strong><br><code>tell app "Google Chrome"</code></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="verdict no">Rejected.</span> Routes to a random same-bundle instance. Permanently unreliable as long as any <code>--app</code> Chrome runs — which is always.</td>
+  </tr>
+  <tr>
+    <td><strong>CDP</strong><br><code>--remote-debugging-port</code></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="verdict no">Rejected.</span> Chrome 136+ <em>ignores</em> the flag on the default profile for security. Would force a separate profile + a fresh HEY login — losing the real session.</td>
+  </tr>
+  <tr>
+    <td><strong>Isolate the OBS Chromes</strong> to another bundle (Chromium/Beta)</td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="verdict no">Rejected.</span> Brittle: it breaks again the next time <em>any</em> <code>--app</code> Chrome is launched. Pushes the problem onto the user&rsquo;s workflow.</td>
+  </tr>
+  <tr>
+    <td><strong>Disk session file</strong> (SNSS)</td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="verdict no">Detection only.</span> Proved the open HEY URL was discoverable on disk — but it can&rsquo;t switch tabs, so it can&rsquo;t complete a press.</td>
+  </tr>
+  <tr>
+    <td><strong>Accessibility (AX) API</strong><br><code>AXDocument</code> per window</td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill no">no</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="verdict no">Built, then superseded.</span> Reads the <em>active</em> tab URL instantly — but only the active one. Tab strip/omnibox aren&rsquo;t in the AX tree without forcing full a11y mode (couldn&rsquo;t, via System Events), and a full traversal took <strong>~2&nbsp;minutes</strong>. Failed the moment HEY was backgrounded.</td>
+  </tr>
+  <tr style="background:#f4faf5">
+    <td><strong>ScriptingBridge by PID</strong><br><code>initWithProcessIdentifier:</code></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="pill yes">yes</span></td>
+    <td><span class="verdict yes">Chosen.</span> Addresses Apple Events to <em>one exact PID</em>, sidestepping bundle-id routing entirely. Full scripting dictionary on the real browser: every window, every tab (background included), and tab selection.</td>
+  </tr>
+</table>
+</section>
+
+<section id="journey">
+<h2><span class="num">6</span>The journey, step by step</h2>
+<p>The order matters, because each step taught the constraint that ruled out the next-simplest idea.</p>
+<ol class="timeline">
+  <li>
+    <div class="step-t">Fix the rage bug first: never spawn a junk profile.</div>
+    <p>Replaced AppleScript <code>make new window</code> in <code>create()</code> with
+    <code>Google&nbsp;Chrome&nbsp;--new-window&nbsp;&lt;url&gt;</code> (no
+    <code>--user-data-dir</code>).</p>
+    <p class="ev"><b>Why it works:</b> launching the binary with no profile flag hands the URL
+    to the running <b>default-profile</b> instance — it printed
+    <code>Opening in existing browser session</code> — so it lands in the real,
+    logged-in profile and can never create a throwaway one. Detection was still broken,
+    but the worst symptom was gone.</p>
+  </li>
+  <li>
+    <div class="step-t">Prove detection is even possible.</div>
+    <p>Found the open HEY URL in Chrome&rsquo;s on-disk session file
+    (<code>…/Profile&nbsp;1/Sessions/Session_*</code>).</p>
+    <p class="ev"><b>Lesson:</b> macOS <em>can</em> tell a tab is open — the AppleScript path
+    was the problem, not the OS. But disk can&rsquo;t focus a tab, so it&rsquo;s not a
+    complete answer.</p>
+  </li>
+  <li>
+    <div class="step-t">Confirm the routing is truly unfixable from AppleScript.</div>
+    <p>Activating the default instance first (<code>open -b</code>, <code>open -a</code>)
+    did <strong>not</strong> change which instance the Apple Event reached — still
+    <code>0</code> windows, still <code>-1719</code>.</p>
+    <p class="ev"><b>Lesson:</b> high-level <code>tell application "name"</code> gives no
+    control over instance selection. Dead end confirmed, not assumed.</p>
+  </li>
+  <li>
+    <div class="step-t">Build the AX approach (user&rsquo;s choice at the time).</div>
+    <p>Discovered each Chrome window exposes its <em>active</em> tab&rsquo;s URL as the
+    window-level <code>AXDocument</code> attribute — instant, no traversal, PID-attributed.
+    Wired <code>find()</code> to read it and bridge the window title to the AeroSpace
+    window-id; <code>focus()</code> via <code>aerospace focus --window-id</code>. It worked.</p>
+    <p class="ev"><b>Observed:</b> <code>AXDocument = https://app.hey.com/</code> on the
+    &ldquo;Imbox&rdquo; window; <code>aerospace focus --window-id 456</code> jumped from
+    Slack (ws&nbsp;7) to HEY (ws&nbsp;1).</p>
+  </li>
+  <li>
+    <div class="step-t">The challenge that broke AX.</div>
+    <p>The user switched the HEY window to another tab and said: &ldquo;find it.&rdquo;
+    Now <strong>no</strong> window had <code>AXDocument = app.hey.com</code>; HEY was a
+    background tab. Probing the tab strip via AX found <strong>nothing</strong> and a
+    full <code>entire contents</code> traversal took <strong>114 seconds</strong>.</p>
+    <p class="ev"><b>Hard limit learned:</b> AX never exposes a <em>background</em>
+    tab&rsquo;s URL (the tab strip isn&rsquo;t in the tree without forcing full
+    accessibility mode, which System Events can&rsquo;t set). AX was a ceiling, not a floor.</p>
+  </li>
+  <li>
+    <div class="step-t">The breakthrough: address Apple Events to a PID.</div>
+    <p><code>SBApplication.alloc().initWithProcessIdentifier_(4056)</code> talks to that
+    <em>exact</em> process, bypassing bundle-id routing. It returned the full scripting
+    dictionary of the real browser.</p>
+    <p class="ev"><b>Observed:</b> <b>77 tabs</b> enumerated across all windows; HEY found
+    as <code>window#0 tab#0 https://app.hey.com/</code> <em>while that window&rsquo;s
+    active tab was Gemini</em> — the precise case AX could not see.</p>
+  </li>
+  <li>
+    <div class="step-t">Ship it as a real dependency.</div>
+    <p>Added <code>pyobjc-framework-ScriptingBridge</code> to <code>deck</code> so it runs
+    as plain <code>deck</code> (reproducible, no ad-hoc environments). Reverted the
+    permission model from Accessibility back to Automation; <code>doctor</code> checks it.</p>
+    <p class="ev"><b>Verified live:</b> <code>deck open hey</code> jumped to HEY from a
+    background tab, with no duplicate window and no stray profile.</p>
+  </li>
+</ol>
+</section>
+
+<section id="final">
+<h2><span class="num">7</span>How it works now</h2>
+<p>One mechanism — ScriptingBridge addressed to the default-profile Chrome PID —
+does detection and tab selection; AeroSpace does the workspace move.</p>
+<ol class="flow">
+  <li><strong>Pick the PID.</strong> Among the real <code>Google&nbsp;Chrome</code>
+  processes (no helpers/renderers), choose the one launched <em>without</em>
+  <code>--user-data-dir</code> — the default-profile browser. The <code>--app</code>
+  instances are deliberately ignored.</li>
+  <li><strong>Attach.</strong> <code>SBApplication.initWithProcessIdentifier_(pid)</code>
+  — Apple Events now go to that process only, immune to how many Chromes are running.</li>
+  <li><strong><code>find()</code>.</strong> Scan every window&rsquo;s every tab for
+  <code>target.match</code> (substring of the URL). Background tabs included. Read-only.</li>
+  <li><strong><code>focus()</code>.</strong> Set the window&rsquo;s
+  <code>activeTabIndex</code> to the match, raise the window, activate Chrome.</li>
+  <li><strong>Follow with AeroSpace.</strong> Bridge the window title to its AeroSpace
+  window-id and run <code>aerospace focus --window-id</code>, which focuses the window
+  and switches to its workspace.</li>
+  <li><strong><code>create()</code> (only if not found).</strong>
+  <code>Google&nbsp;Chrome&nbsp;--new-window&nbsp;&lt;url&gt;</code> in the default profile,
+  then place + switch the new window via AeroSpace.</li>
+</ol>
+<div class="callout note"><span class="tag">The title bridge</span>
+ScriptingBridge reports a window&rsquo;s title as the bare page title
+(<code>Imbox</code>); AeroSpace (and AX) report
+<code>Imbox - Google Chrome - Rene</code>. So the match is a <em>prefix</em> match.
+The AeroSpace window-id is captured from the window&rsquo;s pre-switch title and stays
+valid after the tab changes, so the focus is race-free.</div>
+</section>
+
+<section id="primitives">
+<h2><span class="num">8</span>Primitives &amp; facts worth keeping</h2>
+<p>These are the load-bearing OS behaviors this design depends on — each was
+verified live, not assumed:</p>
+<table>
+  <tr><th>Fact</th><th>Consequence for deck</th></tr>
+  <tr><td>Multiple processes can share one bundle id; <code>tell application "name"</code> picks one you can&rsquo;t control.</td><td>The whole reason plain AppleScript fails. Never rely on it when the user runs <code>--app</code> Chromes.</td></tr>
+  <tr><td><code>SBApplication initWithProcessIdentifier:</code> sends Apple Events to a <em>specific</em> PID.</td><td>The single enabler of the final design. This is the escape hatch from bundle-id routing.</td></tr>
+  <tr><td>Chrome 136+ ignores <code>--remote-debugging-port</code> on the default user-data-dir.</td><td>CDP can&rsquo;t see the real logged-in profile. Don&rsquo;t propose it for default-profile dedup.</td></tr>
+  <tr><td>A Chrome window exposes its <em>active</em> tab URL as the <code>AXDocument</code> AX attribute (instant).</td><td>Tempting and fast — but active-tab-only. Insufficient for background tabs.</td></tr>
+  <tr><td>Chrome&rsquo;s tab strip / background-tab URLs are not in the AX tree without forcing full a11y mode (unsettable via System Events).</td><td>AX has a hard ceiling here; don&rsquo;t spend time traversing (<code>entire contents</code> ≈ 2&nbsp;min).</td></tr>
+  <tr><td>Open-tab URLs are written to the profile&rsquo;s SNSS session files on disk.</td><td>A permission-free way to <em>detect</em> (not focus). Good fallback signal if ever needed.</td></tr>
+  <tr><td>Only one process can own a given <code>--user-data-dir</code>; a second launch hands off to the first.</td><td>&ldquo;The default-profile Chrome&rdquo; is unambiguous — exactly one, regardless of how many <code>--app</code> Chromes exist.</td></tr>
+  <tr><td><code>aerospace focus --window-id &lt;id&gt;</code> focuses a window <em>and</em> follows to its workspace.</td><td>Lets deck do focus + workspace switch in one call once it has the id.</td></tr>
+  <tr><td>AeroSpace / AX window title = <code>&lt;page&gt; - Google Chrome - &lt;profile&gt;</code>; ScriptingBridge title = <code>&lt;page&gt;</code>.</td><td>Bridge SB&rarr;AeroSpace by prefix match, not equality.</td></tr>
+</table>
+</section>
+
+<section id="permissions">
+<h2><span class="num">9</span>Permissions model</h2>
+<p>Both browser backends drive the browser via Apple Events, so both need
+<strong>Automation</strong> permission — granted to the <em>app that runs deck</em>,
+not to deck itself:</p>
+<ul>
+  <li><strong>Development:</strong> your terminal (here, Ghostty) &rarr; Google Chrome &amp; Safari.</li>
+  <li><strong>Production:</strong> the <strong>Elgato Stream Deck</strong> app, since button presses run under it.</li>
+</ul>
+<p>The first Chrome press shows a one-time macOS &ldquo;<em>deck wants to control
+Google Chrome</em>&rdquo; prompt. In practice no prompt appeared on first run,
+because the terminal already held Automation&rarr;Chrome from earlier work — TCC
+keys the grant to the controlling app, which deck inherits. <code>deck doctor</code>
+reports the status for every browser the config uses.</p>
+<div class="callout note"><span class="tag">Superseded</span>
+The short-lived AX design needed <strong>Accessibility</strong> permission
+(granted to Ghostty during that phase). The final design does not use AX — that
+grant can be removed.</div>
+</section>
+
+<section id="limits">
+<h2><span class="num">10</span>Known limits &amp; future</h2>
+<ul>
+  <li><strong>Dedup needs a running default-profile Chrome.</strong> If only
+  <code>--app</code> instances are up, <code>find()</code> returns nothing and
+  <code>create()</code> opens a fresh default-profile window — which is the desired
+  outcome anyway.</li>
+  <li><strong>Only the default profile is queried — on purpose.</strong> deck targets one
+  PID (your real browser); the <code>--app --user-data-dir</code> Chromes are ignored.
+  A tab living only in a separate <code>--user-data-dir</code> profile wouldn&rsquo;t be
+  found. If that ever matters, add a per-target <code>profile</code>/<code>user-data-dir</code>
+  field in <code>targets.toml</code> so a target can name which instance to query.</li>
+  <li><strong>Phase 2</strong> (<code>mode = "app"</code> &rarr; <code>--app=&lt;url&gt;</code>
+  windows) and <strong>Phase 3</strong> (Stream Deck wiring) are still ahead. The
+  ScriptingBridge dedup already generalizes to app-mode windows, since they&rsquo;re just
+  windows/tabs in the same default-profile instance.</li>
+</ul>
+<div class="callout aha"><span class="tag">The one-line takeaway</span>
+If you remember nothing else: <strong>the user runs several Chrome instances under
+one bundle id, so address Chrome by PID with ScriptingBridge — never by name with
+AppleScript.</strong> Everything else follows from that.</div>
+</section>
+
+</main>
+
+<footer>
+  Generated as a design record for <code>deck</code>. Pairs with
+  <code>CLAUDE.md</code> (rules) and the project memory note
+  <code>deck-chrome-dedup-accessibility</code> (decision summary).
+  Evidence in this document was observed live on the target machine
+  (macOS, Chrome 148, AeroSpace, Profile&nbsp;1).
+</footer>
+
+</body>
+</html>
