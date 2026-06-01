@@ -93,6 +93,12 @@ def cmd_open(
                 _err(e)
         raise typer.Exit(code=1)
 
+    # Windowless system actions skip the whole find/create/place dance.
+    if tgt.kind == "action":
+        if ctx.obj.dry_run:
+            raise typer.Exit(code=_dry_run_action(tgt))
+        raise typer.Exit(code=_live_action(tgt))
+
     backend = get_backend(tgt)
     _log.info("open %s (kind=%s, ws=%s)", tgt.name, tgt.kind, tgt.workspace)
 
@@ -231,6 +237,35 @@ def _dry_run_open(target, backend) -> int:
     return 0
 
 
+def _live_action(target) -> int:
+    """Perform a windowless system action (e.g. toggle the macOS theme)."""
+    from . import system
+
+    try:
+        mode = system.run_action(target.action)
+    except system.ActionError as exc:
+        _log.error("action %s failed: %s", target.name, exc)
+        _err(f"open {target.name} failed: {exc}")
+        return 1
+    console.print(f"{target.name}: appearance is now [bold]{mode}[/]")
+    return 0
+
+
+def _dry_run_action(target) -> int:
+    from . import system
+
+    console.print(
+        f"[dim]\\[dry-run][/] open {target.name}  "
+        f"(kind=action, action={target.action})"
+    )
+    console.print(f"  current appearance: {system.current_mode()}")
+    try:
+        console.print(f"  would run: osascript -e '{system.script_for(target.action)}'")
+    except system.ActionError as exc:
+        console.print(f"  error: {exc}")
+    return 0
+
+
 def _is_current(target) -> bool:
     """True for a target that should open on whatever workspace is focused."""
     return (target.workspace or "").strip().lower() == config.CURRENT_WORKSPACE
@@ -266,6 +301,11 @@ def cmd_close(
             if target in e:
                 _err(e)
         raise typer.Exit(code=1)
+
+    # System actions are stateless taps — a long-press has nothing to close.
+    if tgt.kind == "action":
+        console.print(f"{tgt.name} is a tap action (nothing to close)")
+        raise typer.Exit(code=0)
 
     backend = get_backend(tgt)
     _log.info("close %s (kind=%s)", tgt.name, tgt.kind)
@@ -340,6 +380,8 @@ def cmd_list(
             }
             if t.kind == "app":
                 item["bundle"] = t.bundle
+            elif t.kind == "action":
+                item["action"] = t.action
             else:
                 item["url"] = t.url
             items.append(item)
@@ -360,11 +402,13 @@ def cmd_list(
     for name, t in cfg.targets.items():
         if t.kind == "app":
             target_desc = t.bundle or ""
+        elif t.kind == "action":
+            target_desc = t.action or ""
         else:
             target_desc = t.url or ""
             if t.mode == "app":
                 target_desc += " [magenta]\\[mode=app][/]"
-        table.add_row(name, t.workspace, t.kind, target_desc)
+        table.add_row(name, t.workspace or "—", t.kind, target_desc)
 
     console.print(table)
 
@@ -578,14 +622,16 @@ def cmd_doctor() -> None:
                 _bad("bundle:", f"{t.bundle} ({name}) NOT FOUND")
                 ok = False
 
-    # Both Safari and Chrome targets drive the browser via Apple Events
-    # (Automation). Safari via plain AppleScript; Chrome via ScriptingBridge
-    # addressed to the default-profile PID. Without Automation they fail at press
-    # time (osascript -1743 / ScriptingBridge returns nil).
-    browsers = {"safari": "Safari", "chrome": "Google Chrome"}
-    used = {t.kind for t in cfg.targets.values()} & browsers.keys()
-    for kind in sorted(used):
-        app_name = browsers[kind]
+    # Targets that drive other apps via Apple Events (Automation) need the app
+    # running deck authorized for each. Safari/Chrome (browser dedup) and System
+    # Events (theme actions). Without it they fail at press time (osascript -1743
+    # / ScriptingBridge returns nil).
+    kinds = {t.kind for t in cfg.targets.values()}
+    automated = {"safari": "Safari", "chrome": "Google Chrome"}
+    probe = {automated[k] for k in kinds & automated.keys()}
+    if "action" in kinds:
+        probe.add("System Events")
+    for app_name in sorted(probe):
         state = _automation_state(app_name)
         if state == "ok":
             _ok("automation:", app_name)

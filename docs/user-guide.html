@@ -104,12 +104,15 @@
 key and point at a target from your <code>deck</code> config. Once set, the key:</p>
 <ul>
   <li>shows the right <strong>icon</strong> automatically (the site&rsquo;s favicon for a
-  browser tab, the app icon for a native app);</li>
+  browser tab, the app icon for a native app, or a glyph for a system action);</li>
   <li>on a <strong>tap</strong>, opens the target — or, if it&rsquo;s already open, just
   focuses it — and switches AeroSpace to its workspace;</li>
   <li>on a <strong>long-press</strong> (hold ~0.5s), closes it — quits the app, or
   closes the matched browser tab.</li>
 </ul>
+<p>A target can also be a windowless <strong>system action</strong> — e.g. a button that
+toggles macOS dark mode — where a tap just runs the action. See
+<a href="#newtarget">§6</a>.</p>
 <div class="callout key"><span class="tag">The one thing to know</span>
 The plugin is a thin wrapper around the <code>deck</code> command-line tool. The
 buttons just run <code>deck open</code> / <code>deck close</code> for you. So if
@@ -224,6 +227,8 @@ access the first time (they&rsquo;re cached afterward). If a key stays blank, ru
     </tr>
   </tbody>
 </table>
+<p>A <strong>system action</strong> target (e.g. the dark-mode toggle) is the exception: a
+tap runs the action and the long-press is a no-op — there&rsquo;s no window to close.</p>
 <p>The key flashes a green <strong>✓</strong> on success or a yellow <strong>⚠</strong>
 if something went wrong (e.g. a permission prompt is waiting, or no target is
 selected).</p>
@@ -308,6 +313,23 @@ The first browser target you open on an empty workspace creates the window; ever
 one after that lands as a tab in it. Mixed Chrome + Safari on the same workspace
 stay separate (one Chrome window, one Safari window) — consolidation is per
 browser.</div>
+
+<h3>A button that toggles dark mode (system actions)</h3>
+<p>Not every button has to open a window. A <code>type = "action"</code> target runs a
+<strong>system action</strong> instead — no app, no workspace. The built-in one toggles the
+macOS appearance between light and dark:</p>
+<pre><code>[theme]
+type = "action"
+action = "theme-toggle"        # theme-toggle | theme-dark | theme-light</code></pre>
+<p>Add it, pick <strong>theme</strong> in the Target dropdown, and the button shows a
+half-disc <strong>◐</strong> icon. A <strong>tap flips light ⇄ dark</strong>; the long-press does
+nothing (there&rsquo;s no window to close). The two explicit variants make fixed buttons:
+<code>theme-dark</code> (icon <strong>☾</strong>) always goes dark, <code>theme-light</code>
+(<strong>☀</strong>) always goes light.</p>
+<div class="callout note"><span class="tag">One-time permission</span>
+Setting the appearance drives <strong>System Events</strong> via Automation, so the first press
+shows &ldquo;Elgato Stream Deck wants to control System Events&rdquo; — approve it (see
+<a href="#permissions">Permissions</a>). Same one-time model as the browser targets.</div>
 </section>
 
 <section id="permissions">
@@ -321,11 +343,13 @@ grant access once per controlled app, not once per button.</p>
   &ldquo;Elgato Stream Deck wants to control Google Chrome&rdquo;.</li>
   <li>Same for <strong>Safari</strong>, and the first time a long-press
   <strong>quits a native app</strong>.</li>
+  <li>The first time a button runs a <strong>theme / system action</strong>: approve
+  &ldquo;Elgato Stream Deck wants to control System Events&rdquo;.</li>
   <li>AeroSpace placement uses a plain CLI call — no permission prompt.</li>
 </ul>
 <p>You can review or toggle these later in <strong>System Settings → Privacy &amp;
 Security → Automation</strong>. To check status from the terminal:</p>
-<pre><code>deck doctor          # reports Automation for the browsers your targets use</code></pre>
+<pre><code>deck doctor          # reports Automation for the browsers + System Events your targets use</code></pre>
 <div class="callout note"><span class="tag">Only open/close need permission</span>
 The config helpers send <em>no</em> Apple Events and never prompt:
 <code>deck list</code>, <code>deck icon</code> and <code>deck bundle</code> all use

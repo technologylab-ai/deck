@@ -18,6 +18,10 @@ from pathlib import Path
 
 _VALID_BROWSERS = ("safari", "chrome")
 _VALID_MODES = ("tab", "app")
+# `type = "action"` targets perform a windowless system action (no AeroSpace
+# window, no workspace) — `deck open <name>` just runs it. The Stream Deck plugin
+# drives them unchanged via the normal open/list/icon path.
+_VALID_ACTIONS = ("theme-toggle", "theme-dark", "theme-light")
 
 # Sentinel workspace value: open the target on whatever workspace is focused and
 # leave it there (no move), rather than pinning it to a fixed workspace name.
@@ -31,13 +35,14 @@ class ConfigError(Exception):
 @dataclass
 class Target:
     name: str
-    kind: str  # "app" | "safari" | "chrome"
+    kind: str  # "app" | "safari" | "chrome" | "action"
     workspace: str
     bundle: str | None = None
     browser: str | None = None
     url: str | None = None
     match: str | None = None
     mode: str = "tab"  # "tab" (Phase 1) | "app" (Phase 2)
+    action: str | None = None  # for kind == "action": which system action
 
 
 @dataclass
@@ -59,6 +64,19 @@ def _parse_target(name: str, table: dict, errors: list[str]) -> Target | None:
         errors.append(f"[{name}]: expected a table, got {type(table).__name__}")
         return None
 
+    # Windowless system actions: no workspace, no url/bundle — just an action id.
+    if table.get("type") == "action":
+        action = table.get("action")
+        if not action:
+            errors.append(f"[{name}]: action target missing required field 'action'")
+        elif action not in _VALID_ACTIONS:
+            errors.append(
+                f"[{name}]: invalid action '{action}' "
+                f"(use {', '.join(_VALID_ACTIONS)})"
+            )
+            action = None
+        return Target(name=name, kind="action", workspace="", action=action)
+
     workspace = table.get("workspace")
     if workspace is None:
         errors.append(f"[{name}]: missing required field 'workspace'")
@@ -71,7 +89,9 @@ def _parse_target(name: str, table: dict, errors: list[str]) -> Target | None:
     browser = table.get("browser")
 
     if "type" in table and table["type"] != "app":
-        errors.append(f"[{name}]: unknown type '{table['type']}' (only 'app')")
+        errors.append(
+            f"[{name}]: unknown type '{table['type']}' (use 'app' or 'action')"
+        )
 
     if is_app:
         bundle = table.get("bundle")

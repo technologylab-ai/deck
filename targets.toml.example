@@ -3,6 +3,7 @@
 # One table per target. Discriminator:
 #   type = "app"                 -> native macOS app (needs `bundle`)
 #   browser = "safari" | "chrome" -> web target (needs `url`)
+#   type = "action"              -> windowless system action (needs `action`)
 #
 # `workspace` is an AeroSpace workspace name (numeric here), or the special value
 # "current" to open the target on whatever workspace is focused and leave it
@@ -38,3 +39,13 @@ workspace = "1"
 type = "app"
 bundle = "com.openai.chat"
 workspace = "current"   # open on whatever workspace I'm on; don't move it
+
+# Windowless system action — no workspace, no dedup. A tap runs it; the Stream
+# Deck long-press (close) is a no-op. Needs Automation access to System Events
+# for the app running deck (one-time prompt on first press). `action` is one of:
+#   theme-toggle  -> flip light <-> dark   (◐)
+#   theme-dark    -> force dark            (☾)
+#   theme-light   -> force light           (☀)
+[theme]
+type = "action"
+action = "theme-toggle"

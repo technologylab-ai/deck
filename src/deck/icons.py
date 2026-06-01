@@ -56,6 +56,8 @@ def png_bytes(target: Target, size: int = DEFAULT_SIZE, refresh: bool = False) -
 
     if target.kind == "app":
         data = _app_icon_png(target, size)
+    elif target.kind == "action":
+        data = _action_icon_png(target, size)
     else:
         data = _favicon_png(target)
 
@@ -107,6 +109,70 @@ def _http_get(url: str, timeout: float = 5.0) -> bytes | None:
     except (urllib.error.URLError, OSError, ValueError) as exc:
         _log.debug("favicon GET %s failed: %s", url, exc)
         return None
+
+
+# --------------------------------------------------------------------------- #
+# action targets — rendered glyph
+# --------------------------------------------------------------------------- #
+
+# Monochrome glyphs that read white-on-dark at Stream Deck size. ◐ (half-filled
+# disc) is the universal light/dark toggle; ☾/☀ for the explicit modes.
+_ACTION_GLYPHS = {
+    "theme-toggle": "◐",  # ◐
+    "theme-dark": "☾",    # ☾
+    "theme-light": "☀",   # ☀
+}
+
+
+def _action_icon_png(target: Target, size: int) -> bytes | None:
+    glyph = _ACTION_GLYPHS.get(target.action or "", "●")  # ● fallback
+
+    try:
+        from AppKit import (  # noqa: PLC0415
+            NSBezierPath,
+            NSBitmapImageFileTypePNG,
+            NSBitmapImageRep,
+            NSColor,
+            NSDeviceRGBColorSpace,
+            NSFont,
+            NSFontAttributeName,
+            NSForegroundColorAttributeName,
+            NSGraphicsContext,
+            NSMakeRect,
+        )
+        from Foundation import NSAttributedString  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - environment without pyobjc
+        raise IconError(f"AppKit unavailable: {exc}") from exc
+
+    rep = NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
+        None, size, size, 8, 4, True, False, NSDeviceRGBColorSpace, 0, 0
+    )
+    rep.setSize_((size, size))
+
+    ctx = NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep)
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.setCurrentContext_(ctx)
+
+    # Dark tile background, then the glyph centered in white.
+    NSColor.colorWithCalibratedRed_green_blue_alpha_(0.16, 0.16, 0.18, 1.0).set()
+    NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+        NSMakeRect(0, 0, size, size), size * 0.18, size * 0.18
+    ).fill()
+
+    attrs = {
+        NSFontAttributeName: NSFont.systemFontOfSize_(size * 0.6),
+        NSForegroundColorAttributeName: NSColor.whiteColor(),
+    }
+    s = NSAttributedString.alloc().initWithString_attributes_(glyph, attrs)
+    text = s.size()
+    s.drawAtPoint_(((size - text.width) / 2.0, (size - text.height) / 2.0))
+
+    NSGraphicsContext.restoreGraphicsState()
+
+    png = rep.representationUsingType_properties_(NSBitmapImageFileTypePNG, {})
+    if png is None:
+        return None
+    return bytes(png)
 
 
 # --------------------------------------------------------------------------- #

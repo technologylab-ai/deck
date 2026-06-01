@@ -78,9 +78,10 @@ app, or closes the matched browser tab. Both verbs are idempotent.
   via Launch Services + Spotlight — e.g. `deck bundle teams` →
   `com.microsoft.teams2`. Paste the result into a `type = "app"` target.
 - `deck icon <target>` prints a `data:image/png;base64,…` URL: the site favicon
-  (via DuckDuckGo's icon service) for web targets, or the macOS app icon (via
-  `NSWorkspace`) for app targets. Cached under `~/.cache/deck/icons/`; `--refresh`
-  rebuilds. The Stream Deck plugin feeds this straight into `setImage`.
+  (via DuckDuckGo's icon service) for web targets, the macOS app icon (via
+  `NSWorkspace`) for app targets, or a rendered glyph (◐/☾/☀) for action targets.
+  Cached under `~/.cache/deck/icons/`; `--refresh` rebuilds. The Stream Deck
+  plugin feeds this straight into `setImage`.
 
 ## Config
 
@@ -103,6 +104,10 @@ workspace = "1"
 type = "app"
 bundle = "com.openai.chat"
 workspace = "current"         # open on the focused workspace; don't move it
+
+[theme]
+type = "action"               # windowless system action (no workspace)
+action = "theme-toggle"       # theme-toggle | theme-dark | theme-light
 ```
 
 `workspace` is an AeroSpace workspace name, or the special value `"current"` to
@@ -117,6 +122,22 @@ What "already open" means depends on the target type:
   ignored, so a press opens a fresh one **here** instead of yanking you away.
   This is what you want for a browser app you keep several tabs of (e.g. Gemini
   conversations scattered across workspaces).
+
+### System action targets (`type = "action"`)
+
+A `type = "action"` target is **windowless** — it has no AeroSpace window and no
+workspace. A tap just runs the action and returns; the long-press (`deck close`)
+is a no-op. It rides the same Stream Deck plugin as everything else (dropdown,
+icon, tap), so adding one is still a TOML-only change. The available actions:
+
+- `theme-toggle` — flip the macOS appearance light ⇄ dark (icon **◐**)
+- `theme-dark` — force dark (**☾**)
+- `theme-light` — force light (**☀**)
+
+Setting the appearance drives **System Events** via Apple Events, so the app
+running deck (your terminal for dev, Elgato Stream Deck for buttons) needs
+Automation access to System Events — a one-time prompt on the first press, the
+same model the Safari/Chrome targets use. `deck doctor` checks for it.
 
 ### Browser targets open as tabs, consolidated per workspace
 

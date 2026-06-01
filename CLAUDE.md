@@ -78,6 +78,12 @@ place(handle, workspace)
 
 Backends also implement `close(handle)` (quit app / close tab) and `describe_*` (dry-run).
 
+**Windowless actions bypass the backend entirely.** A `type = "action"` target (e.g. the macOS
+theme toggle) has no window, workspace, or dedup, so it does **not** go through find/create/place.
+`cli.cmd_open` short-circuits `kind == "action"` straight to `system.run_action()` (and `cmd_close`
+is a no-op); `system.py` runs the AppleScript. It still rides the normal `list`/`icon` path so the
+Stream Deck plugin drives it unchanged. See "System actions" below.
+
 **Browser create() consolidates into tabs.** When a browser target must be created, the backend
 adds it as a new **tab** in a browser window already on the target workspace, opening a separate
 window only when that workspace has no browser yet (one window-per-workspace with N tabs, not N
@@ -121,8 +127,9 @@ Three backends:
 ## Config
 
 TOML at `~/.config/deck/targets.toml`, loaded with `tomllib`. One table per target. `browser`
-implies a web target; `type = "app"` is a native app. Adding a target must require editing TOML
-**only** — no code and no Stream Deck changes.
+implies a web target; `type = "app"` is a native app; `type = "action"` is a windowless system
+action (needs an `action` field, no `workspace`). Adding a target must require editing TOML **only**
+— no code and no Stream Deck changes.
 
 `workspace` is an AeroSpace workspace name, or the sentinel `"current"`
 (`config.CURRENT_WORKSPACE`): open the target on the focused workspace and skip the move (a new
@@ -136,6 +143,18 @@ window already lands there). "Already open" depends on kind:
 
 The `_is_current()` branch (skip-move) and the workspace-local discard are the only divergences
 from the normal create→place→switch path.
+
+### System actions (`type = "action"`)
+
+A windowless target: no window, no workspace, no dedup. `action` selects the operation —
+`theme-toggle` / `theme-dark` / `theme-light` (validated against `config._VALID_ACTIONS`). The whole
+implementation is `system.py` (one `osascript` to System Events: `set dark mode to not dark mode`,
+or `true`/`false`) plus short-circuits in `cli.cmd_open`/`cmd_close`, a `kind == "action"` branch in
+`icons.png_bytes` (renders the ◐/☾/☀ glyph), `list`/`list --json`, and `doctor` (probes Automation
+for **System Events**, not just the browsers). Setting appearance needs Automation (Apple Events) for
+the app running deck → System Events, same permission model as Safari/Chrome; reading the current
+mode uses `defaults read -g AppleInterfaceStyle` (no permission). To add another action: add an id to
+`_VALID_ACTIONS`, a script to `system._SCRIPTS`, and a glyph to `icons._ACTION_GLYPHS`.
 
 ## CLI surface
 
